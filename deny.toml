@@ -1,0 +1,6 @@
+[licenses]
+allow = ["MPL-2.0"]
+allow-osi-fsf-free = "both"
+exceptions = [
+    { allow = ["AGPL-3.0"], name = "cargo-bup", version = "*" },
+]
