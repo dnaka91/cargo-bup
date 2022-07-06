@@ -23,9 +23,11 @@ use crate::{
 mod cargo;
 mod table;
 
+/// Update your cargo-installed binaries.
 #[derive(Parser)]
-#[clap(about, author, version)]
+#[clap(about, author, version, bin_name = "cargo")]
 enum Opt {
+    /// Update your cargo-installed binaries.
     Bup(Command),
 }
 
