@@ -393,3 +393,14 @@ fn progress(msg: fmt::Arguments) -> ProgressGuard {
     print!("{}... ", msg);
     ProgressGuard
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_app() {
+        use clap::CommandFactory;
+        Opt::command().debug_assert();
+    }
+}
