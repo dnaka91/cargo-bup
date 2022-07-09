@@ -99,3 +99,41 @@ impl<'a> Display for ColorizedVersion<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn colorized_versions() {
+        // 1.0.1
+        //     ^-- patch only
+        assert_eq!(
+            "1.0.\x1b[34m1\x1b[39m",
+            ColorizedVersion::new(&Version::new(1, 0, 0), &Version::new(1, 0, 1)).to_string()
+        );
+        // 1.1.0
+        //   ^^^-- minor + patch
+        assert_eq!(
+            "1.\x1b[32m1.0\x1b[39m",
+            ColorizedVersion::new(&Version::new(1, 0, 0), &Version::new(1, 1, 0)).to_string()
+        );
+        // 2.0.0
+        // ^^^^^-- major + minor + patch
+        assert_eq!(
+            "\x1b[33m2.0.0\x1b[39m",
+            ColorizedVersion::new(&Version::new(1, 0, 0), &Version::new(2, 0, 0)).to_string()
+        );
+        // 2.0.0-abc+1
+        // ^^^^^ ^^^ ^-- major + minor + path, then pre, then build,
+        //               but not the pre/build separators
+        assert_eq!(
+            "\x1b[33m2.0.0\x1b[39m-\x1b[2mabc\x1b[0m+\x1b[2m1\x1b[0m",
+            ColorizedVersion::new(
+                &Version::new(1, 0, 0),
+                &Version::parse("2.0.0-abc+1").unwrap()
+            )
+            .to_string()
+        );
+    }
+}
