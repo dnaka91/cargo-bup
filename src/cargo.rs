@@ -33,20 +33,17 @@ impl<'de> de::Deserialize<'de> for PackageId {
         D: de::Deserializer<'de>,
     {
         let string = String::deserialize(deserializer)?;
-        let mut s = string.splitn(3, ' ');
-
-        let name = s.next().unwrap().to_owned();
-
-        let version = s
-            .next()
+        let (name, rest) = string
+            .split_once(' ')
             .ok_or_else(|| de::Error::custom("invalid serialized PackageId"))?;
+        let (version, url) = rest
+            .split_once(' ')
+            .ok_or_else(|| de::Error::custom("invalid serialized PackageId"))?;
+
         let version = Version::parse(version.trim())
-            .with_context(|| anyhow!("cannot parse `{version}` as a semver"))
+            .with_context(|| format!("cannot parse `{version}` as a semver"))
             .map_err(de::Error::custom)?;
 
-        let url = s
-            .next()
-            .ok_or_else(|| de::Error::custom("invalid serialized PackageId"))?;
         let url = url
             .strip_prefix('(')
             .and_then(|u| u.strip_suffix(')'))
@@ -54,7 +51,7 @@ impl<'de> de::Deserialize<'de> for PackageId {
         let source_id = SourceId::from_url(url).map_err(de::Error::custom)?;
 
         Ok(PackageId {
-            name,
+            name: name.to_owned(),
             version,
             source_id,
         })
@@ -89,11 +86,9 @@ impl SourceId {
     }
 
     fn from_url(string: &str) -> Result<Self> {
-        let mut parts = string.splitn(2, '+');
-        let kind = parts.next().unwrap();
-        let url = parts
-            .next()
-            .ok_or_else(|| anyhow!("invalid source `{string}`"))?;
+        let (kind, url) = string
+            .split_once('+')
+            .with_context(|| format!("invalid source `{string}`"))?;
 
         match kind {
             "git" => {
