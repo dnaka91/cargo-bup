@@ -17,7 +17,7 @@ use siphasher::sip::SipHasher24;
 
 use crate::{
     cargo::{CrateListingV2, GitReference, SourceKind},
-    table::Table,
+    table::{GitTable, RegistryTable},
 };
 
 mod cargo;
@@ -293,10 +293,10 @@ fn print_registry_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInfo>
         let registry = updates
             .iter()
             .map(|(pkg, info)| (pkg.name.as_str(), &pkg.version, &info.extra.version))
-            .collect::<Table>();
+            .collect::<RegistryTable>();
 
         println!("<<< Updates from the {} >>>", "registry".green());
-        println!("{registry}\n");
+        println!("\n{registry}\n");
     }
 }
 
@@ -315,30 +315,8 @@ fn print_git_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, enabled
             .map(|(pkg, info)| (pkg.name.as_str(), &info.extra))
             .collect::<BTreeMap<_, _>>();
 
-        let width = gits
-            .keys()
-            .max_by_key(|k| k.len())
-            .map(|k| k.len())
-            .unwrap_or(4);
-
         println!("<<< Updates from {} >>>", "git".green());
-
-        println!("\n{:width$}  Old         New      Changes", "Name");
-        println!("{}", "─".repeat(width * 2 + 2 + 1 + 16+20));
-
-        for (name, info) in gits {
-            println!(
-                "{name:width$}  {:.7}  ➞  {:.7}  {:2} commits | {:2} files changed | {} {}",
-                info.old_commit.cyan(),
-                info.new_commit.cyan(),
-                info.changes.commits.yellow(),
-                info.changes.files_changed.white(),
-                format_args!("+{}", info.changes.insertions).green(),
-                format_args!("-{}", info.changes.deletions).red()
-            );
-        }
-
-        println!("\n");
+        println!("\n{}\n", GitTable(gits));
     }
 }
 

@@ -1,12 +1,17 @@
-use std::fmt::{self, Display};
+use std::{
+    collections::BTreeMap,
+    fmt::{self, Display},
+};
 
 use owo_colors::OwoColorize;
 use semver::Version;
 
-#[derive(Default)]
-pub struct Table(Vec<[String; 3]>);
+use crate::GitInfo;
 
-impl Table {
+#[derive(Default)]
+pub struct RegistryTable(Vec<[String; 3]>);
+
+impl RegistryTable {
     pub fn add(&mut self, name: &str, current: &Version, latest: &Version) {
         self.0.push([
             name.to_owned(),
@@ -16,7 +21,7 @@ impl Table {
     }
 }
 
-impl Display for Table {
+impl Display for RegistryTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut column_widths = ["Name".len(), "Current".len()];
 
@@ -27,7 +32,7 @@ impl Display for Table {
 
         writeln!(
             f,
-            "\n  {} major · {} minor · {} patch\n",
+            "  {} major · {} minor · {} patch\n",
             "◆".yellow(),
             "◆".green(),
             "◆".blue()
@@ -52,7 +57,7 @@ impl Display for Table {
     }
 }
 
-impl<'a> FromIterator<(&'a str, &'a Version, &'a Version)> for Table {
+impl<'a> FromIterator<(&'a str, &'a Version, &'a Version)> for RegistryTable {
     fn from_iter<T: IntoIterator<Item = (&'a str, &'a Version, &'a Version)>>(iter: T) -> Self {
         let mut table = Self::default();
         for (name, current, latest) in iter {
@@ -94,6 +99,37 @@ impl<'a> Display for ColorizedVersion<'a> {
 
         if !self.latest.build.is_empty() {
             write!(f, "+{}", self.latest.build.dimmed())?;
+        }
+
+        Ok(())
+    }
+}
+
+pub struct GitTable<'a>(pub(crate) BTreeMap<&'a str, &'a GitInfo>);
+
+impl<'a> Display for GitTable<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let width = self
+            .0
+            .keys()
+            .max_by_key(|k| k.len())
+            .map(|k| k.len())
+            .unwrap_or(4);
+
+        writeln!(f, "{:width$}  Old         New      Changes", "Name")?;
+        writeln!(f, "{}", "─".repeat(width * 2 + 2 + 1 + 16 + 20))?;
+
+        for (name, info) in &self.0 {
+            writeln!(
+                f,
+                "{name:width$}  {:.7}  ➞  {:.7}  {:2} commits | {:2} files changed | {} {}",
+                info.old_commit.cyan(),
+                info.new_commit.cyan(),
+                info.changes.commits.yellow(),
+                info.changes.files_changed.white(),
+                format_args!("+{}", info.changes.insertions).green(),
+                format_args!("-{}", info.changes.deletions).red()
+            )?;
         }
 
         Ok(())
