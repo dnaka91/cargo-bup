@@ -3,6 +3,7 @@ use std::{
     fmt,
     fs::File,
     hash::{Hash, Hasher},
+    io::Write,
     path::Path,
 };
 
@@ -448,6 +449,7 @@ impl Drop for ProgressGuard {
 
 fn progress(msg: fmt::Arguments) -> ProgressGuard {
     print!("{}... ", msg);
+    std::io::stdout().flush().ok();
     ProgressGuard
 }
 
