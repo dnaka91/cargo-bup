@@ -3,14 +3,15 @@ use std::{
     fmt,
     fs::File,
     hash::{Hash, Hasher},
+    path::Path,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use cargo::{InstallInfo, PackageId};
 use clap::{Args, IntoApp, Parser, Subcommand};
 use clap_complete::Shell;
 use crates_index::Index;
-use git2::{Commit, Oid, Repository};
+use git2::{Commit, Oid, Repository, RepositoryInitOptions};
 use owo_colors::OwoColorize;
 use semver::Version;
 use siphasher::sip::SipHasher24;
@@ -165,56 +166,45 @@ fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Re
                 let cargo_home = home::cargo_home()?;
                 let repo_path = cargo_home.join("git/db").join(&path);
 
-                if repo_path.is_dir() {
-                    let repo = Repository::open_bare(repo_path)?;
-                    let mut remote = repo.remote_anonymous(package.source_id.url.as_str())?;
+                let repo = open_or_init_repo(&repo_path)?;
+                let mut remote = repo.remote_anonymous(package.source_id.url.as_str())?;
 
-                    let target = match git_ref {
-                        GitReference::Tag(_) => todo!("git tag"),
-                        GitReference::Branch(b) => b,
-                        GitReference::Rev(_) => continue, // don't move pinned revs
-                        GitReference::DefaultBranch => "HEAD",
-                    };
+                let (refspec, target) = match git_ref {
+                    GitReference::Tag(_) => continue, // don't touch tags (yet)
+                    GitReference::Branch(b) => (
+                        format!("+refs/heads/{b}:refs/remotes/origin/{b}"),
+                        format!("refs/remotes/origin/{b}"),
+                    ),
+                    GitReference::Rev(_) => continue, // don't move pinned revs
+                    GitReference::DefaultBranch => (
+                        "+HEAD:refs/remotes/origin/HEAD".to_owned(),
+                        "refs/remotes/origin/HEAD".to_owned(),
+                    ),
+                };
 
-                    remote.fetch(&[target], None, None)?;
+                remote.fetch(&[refspec], None, None)?;
 
-                    let head = match repo.find_reference(&format!("refs/remotes/origin/{target}")) {
-                        Ok(r) => r.peel_to_commit()?,
-                        Err(e) => bail!(
-                            "HEAD error class: {:?}, code: {:?}, msg: {}",
-                            e.class(),
-                            e.code(),
-                            e.message()
+                let current = match package.source_id.precise.as_deref() {
+                    Some(c) => c.parse()?,
+                    None => continue,
+                };
+                let current = repo.find_commit(current)?;
+                let latest = repo.find_reference(&target)?.peel_to_commit()?;
+
+                let changes = git_changes(&repo, &current, &latest)?;
+
+                if changes.commits > 0 {
+                    updates.git.insert(
+                        package,
+                        UpdateInfo::new(
+                            info,
+                            GitInfo {
+                                old_commit: current.id(),
+                                new_commit: latest.id(),
+                                changes,
+                            },
                         ),
-                    };
-                    let fetch_head = match repo.find_reference("FETCH_HEAD") {
-                        Ok(r) => r.peel_to_commit()?,
-                        Err(e) => bail!(
-                            "FETCH_HEAD error class: {:?}, code: {:?}, msg: {}",
-                            e.class(),
-                            e.code(),
-                            e.message()
-                        ),
-                    };
-
-                    let changes = git_changes(&repo, &head, &fetch_head)?;
-
-                    if changes.commits > 0 {
-                        updates.git.insert(
-                            package,
-                            UpdateInfo::new(
-                                info,
-                                GitInfo {
-                                    path,
-                                    old_commit: head.id(),
-                                    new_commit: fetch_head.id(),
-                                    changes,
-                                },
-                            ),
-                        );
-                    }
-                } else {
-                    println!("    missing {}", path.red());
+                    );
                 }
             }
             SourceKind::Path => {
@@ -278,7 +268,6 @@ struct RegistryInfo {
 }
 
 struct GitInfo {
-    path: String,
     old_commit: Oid,
     new_commit: Oid,
     changes: GitChanges,
@@ -487,6 +476,19 @@ fn git_changes<'r>(repo: &'r Repository, old: &Commit<'r>, new: &Commit<'r>) -> 
     })
 }
 
+fn open_or_init_repo(path: &Path) -> Result<Repository, git2::Error> {
+    if path.is_dir() {
+        Repository::open_bare(path)
+    } else {
+        Repository::init_opts(
+            path,
+            RepositoryInitOptions::new()
+                .external_template(false)
+                .bare(true),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,46 +497,6 @@ mod tests {
     fn verify_app() {
         use clap::CommandFactory;
         Opt::command().debug_assert();
-    }
-
-    #[test]
-    fn parse_thingy() -> anyhow::Result<()> {
-        let cargo_home = home::cargo_home()?;
-        let repo = cargo_home.join("git/db/oxker-0e3309108aa09323");
-        let repo = Repository::open_bare(repo)?;
-
-        // Fetch the latest HEAD from remote.
-        let mut remote = repo.remote_anonymous("https://github.com/mrjackwills/oxker.git")?;
-        remote.fetch(&["HEAD"], None, None)?;
-
-        // Get current HEAD and just fetched new FETCH_HEAD.
-        let ref_old = repo
-            .find_reference("refs/remotes/origin/HEAD")?
-            .peel_to_commit()?;
-        let ref_new = repo.find_reference("FETCH_HEAD")?.peel_to_commit()?;
-
-        // Compare the two, counting amount of commits.
-        let GitChanges {
-            commits,
-            files_changed,
-            insertions,
-            deletions,
-        } = git_changes(&repo, &ref_old, &ref_new)?;
-
-        println!(
-            "{:.7} -> {:.7} ({} commits | {} files changed | {} {})",
-            ref_old.id().cyan(),
-            ref_new.id().cyan(),
-            commits.yellow().bold(),
-            files_changed.white(),
-            format_args!("+{insertions}").green(),
-            format_args!("-{deletions}").red(),
-        );
-
-        // Update HEAD to FETCH_HEAD.
-        // r_old.set_target(r_new.id(), "")?;
-
-        Ok(())
     }
 
     #[test]
