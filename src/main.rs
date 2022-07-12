@@ -4,11 +4,11 @@ use std::{
     fs::File,
     hash::{Hash, Hasher},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result};
-use cargo::{InstallInfo, PackageId};
+use cargo::{CanonicalUrl, InstallInfo, PackageId};
 use clap::{Args, IntoApp, Parser, Subcommand};
 use clap_complete::Shell;
 use crates_index::Index;
@@ -149,47 +149,34 @@ fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Re
                     continue;
                 }
 
-                let ident = package
-                    .source_id
-                    .canonical_url
-                    .0
-                    .path_segments()
-                    .and_then(|s| s.last())
-                    .unwrap_or("");
+                let commit_id = match package.source_id.precise.as_deref() {
+                    Some(c) => c.parse()?,
+                    None => continue,
+                };
 
-                let ident = if ident.is_empty() { "_empty" } else { ident };
-
-                let mut hasher = SipHasher24::new();
-                package.source_id.canonical_url.hash(&mut hasher);
-                let hash = hex::encode(hasher.finish().to_le_bytes());
-                let path = format!("{ident}-{hash}");
-
-                let cargo_home = home::cargo_home()?;
-                let repo_path = cargo_home.join("git/db").join(&path);
-
+                let repo_path = get_git_repo_path(&package.source_id.canonical_url)?;
                 let repo = open_or_init_repo(&repo_path)?;
+
                 let mut remote = repo.remote_anonymous(package.source_id.url.as_str())?;
 
-                let (refspec, target) = match git_ref {
+                let (refspec, target, r#type) = match git_ref {
                     GitReference::Tag(_) => continue, // don't touch tags (yet)
                     GitReference::Branch(b) => (
                         format!("+refs/heads/{b}:refs/remotes/origin/{b}"),
                         format!("refs/remotes/origin/{b}"),
+                        format!("branch {b}"),
                     ),
                     GitReference::Rev(_) => continue, // don't move pinned revs
                     GitReference::DefaultBranch => (
                         "+HEAD:refs/remotes/origin/HEAD".to_owned(),
                         "refs/remotes/origin/HEAD".to_owned(),
+                        "HEAD".to_owned(),
                     ),
                 };
 
                 remote.fetch(&[refspec], None, None)?;
 
-                let current = match package.source_id.precise.as_deref() {
-                    Some(c) => c.parse()?,
-                    None => continue,
-                };
-                let current = repo.find_commit(current)?;
+                let current = repo.find_commit(commit_id)?;
                 let latest = repo.find_reference(&target)?.peel_to_commit()?;
 
                 let changes = git_changes(&repo, &current, &latest)?;
@@ -200,6 +187,7 @@ fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Re
                         UpdateInfo::new(
                             info,
                             GitInfo {
+                                r#type,
                                 old_commit: current.id(),
                                 new_commit: latest.id(),
                                 changes,
@@ -269,6 +257,7 @@ struct RegistryInfo {
 }
 
 struct GitInfo {
+    r#type: String,
     old_commit: Oid,
     new_commit: Oid,
     changes: GitChanges,
@@ -476,6 +465,26 @@ fn git_changes<'r>(repo: &'r Repository, old: &Commit<'r>, new: &Commit<'r>) -> 
         insertions: diff_stats.insertions(),
         deletions: diff_stats.deletions(),
     })
+}
+
+fn get_git_repo_path(canonical_url: &CanonicalUrl) -> Result<PathBuf> {
+    let ident = canonical_url
+        .0
+        .path_segments()
+        .and_then(|s| s.last())
+        .unwrap_or("");
+
+    let ident = if ident.is_empty() { "_empty" } else { ident };
+
+    let mut hasher = SipHasher24::new();
+    canonical_url.hash(&mut hasher);
+    let hash = hex::encode(hasher.finish().to_le_bytes());
+    let path = format!("{ident}-{hash}");
+
+    let cargo_home = home::cargo_home()?;
+    let repo_path = cargo_home.join("git/db").join(&path);
+
+    Ok(repo_path)
 }
 
 fn open_or_init_repo(path: &Path) -> Result<Repository, git2::Error> {
