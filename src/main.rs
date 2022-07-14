@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fmt,
     fs::File,
     hash::{Hash, Hasher},
@@ -17,12 +17,12 @@ use owo_colors::OwoColorize;
 use semver::Version;
 use siphasher::sip::SipHasher24;
 
-use crate::{
-    cargo::{CrateListingV2, GitReference, SourceKind},
-    table::{GitTable, RegistryTable},
-};
+use crate::cargo::{CrateListingV2, GitReference, SourceKind};
 
 mod cargo;
+mod git;
+mod path;
+mod registry;
 mod table;
 
 /// Update your cargo-installed binaries.
@@ -90,16 +90,16 @@ fn main() -> Result<()> {
 
     println!();
 
-    print_registry_updates(&updates.registry);
-    print_git_updates(&updates.git, cmd.select_args.git);
-    print_path_updates(&updates.path, cmd.select_args.path);
+    registry::print_updates(&updates.registry);
+    git::print_updates(&updates.git, cmd.select_args.git);
+    path::print_updates(&updates.path, cmd.select_args.path);
 
     println!();
 
     if !cmd.dry_run {
-        install_registry_updates(updates.registry.into_iter());
-        install_git_updates(updates.git.into_iter());
-        install_path_updates(updates.path.into_iter());
+        registry::install_updates(updates.registry.into_iter());
+        git::install_updates(updates.git.into_iter());
+        path::install_updates(updates.path.into_iter());
     }
 
     Ok(())
@@ -264,169 +264,6 @@ struct GitInfo {
 }
 
 struct PathInfo {}
-
-fn print_registry_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInfo>>) {
-    if updates.is_empty() {
-        println!("no {} crate updates", "registry".green());
-    } else {
-        let registry = updates
-            .iter()
-            .map(|(pkg, info)| (pkg.name.as_str(), &pkg.version, &info.extra.version))
-            .collect::<RegistryTable>();
-
-        println!("<<< Updates from the {} >>>", "registry".green());
-        println!("\n{registry}\n");
-    }
-}
-
-fn print_git_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, enabled: bool) {
-    if !enabled {
-        println!(
-            "{} crate updates {}",
-            "git".green(),
-            "disabled".yellow().bold()
-        );
-    } else if updates.is_empty() {
-        println!("no {} crate updates", "git".green());
-    } else {
-        let gits = updates
-            .iter()
-            .map(|(pkg, info)| (pkg.name.as_str(), &info.extra))
-            .collect::<BTreeMap<_, _>>();
-
-        println!("<<< Updates from {} >>>", "git".green());
-        println!("\n{}\n", GitTable(gits));
-    }
-}
-
-fn print_path_updates(updates: &BTreeMap<PackageId, UpdateInfo<PathInfo>>, enabled: bool) {
-    if !enabled {
-        println!(
-            "{} crate updates {}",
-            "local path".green(),
-            "disabled".yellow().bold()
-        );
-    } else if updates.is_empty() {
-        println!("no {} crates", "local path".green());
-    } else {
-        println!("<<< Updates from {} >>>", "local paths".green());
-
-        let paths = updates
-            .iter()
-            .map(|(pkg, _)| pkg.name.as_str())
-            .collect::<BTreeSet<_>>();
-
-        let width = paths
-            .iter()
-            .max_by_key(|n| n.len())
-            .map(|n| n.len())
-            .unwrap_or(4);
-
-        println!("\nName");
-        println!("{}", "─".repeat(width));
-
-        for name in paths {
-            println!("{name}");
-        }
-    }
-}
-
-fn install_registry_updates(
-    updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<RegistryInfo>)>,
-) {
-    let count = updates.len();
-
-    if count > 0 {
-        println!(
-            "start installing {} {} updates",
-            count.blue().bold(),
-            "registry".green().bold()
-        );
-
-        for (i, (pkg, info)) in updates.enumerate() {
-            println!(
-                "\n{} updating {} from {} to {}",
-                format_args!("[{}/{}]", i + 1, count).bold(),
-                pkg.name.green().bold(),
-                pkg.version.blue().bold(),
-                info.extra.version.blue().bold()
-            );
-
-            if let Err(e) =
-                cargo_install_from_registry(&pkg.name, &info.extra.version, &info.install_info)
-            {
-                println!(
-                    "installing {} {}:\n{e}",
-                    pkg.name.green().bold(),
-                    "failed".red().bold()
-                )
-            }
-        }
-    }
-}
-
-fn install_git_updates(updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<GitInfo>)>) {
-    let count = updates.len();
-
-    if count > 0 {
-        println!(
-            "start installing {} {} updates",
-            count.blue().bold(),
-            "git".green().bold()
-        );
-    }
-}
-
-fn install_path_updates(updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<PathInfo>)>) {
-    let count = updates.len();
-
-    if count > 0 {
-        println!(
-            "start installing {} {} updates",
-            count.blue().bold(),
-            "local path".green().bold()
-        );
-    }
-}
-
-fn cargo_install_from_registry(name: &str, version: &Version, info: &InstallInfo) -> Result<()> {
-    let mut cmd = std::process::Command::new("cargo");
-    cmd.args(&["install", name]);
-
-    cmd.arg("--version");
-    cmd.arg(version.to_string());
-
-    for bin in &info.bins {
-        cmd.args(&["--bin", bin]);
-    }
-
-    if info.all_features {
-        cmd.arg("--all-features");
-    } else if !info.features.is_empty() {
-        cmd.arg("--features");
-        cmd.arg(info.features.iter().fold(String::new(), |mut s, f| {
-            if !s.is_empty() {
-                s.push(',');
-            }
-            s.push_str(f);
-            s
-        }));
-    }
-
-    if info.no_default_features {
-        cmd.arg("--no-default-features");
-    }
-
-    if !info.profile.is_empty() {
-        cmd.args(&["--profile", &info.profile]);
-    }
-
-    if !cmd.status()?.success() {
-        eprintln!("failed installing `{name}`");
-    }
-
-    Ok(())
-}
 
 struct ProgressGuard;
 
