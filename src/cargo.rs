@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use rustc_version::VersionMeta;
 use semver::Version;
 use serde::{de, Deserialize};
 use url::Url;
@@ -13,17 +14,17 @@ use url::Url;
 pub struct CrateListingV2 {
     /// Map of every installed package.
     pub installs: BTreeMap<PackageId, InstallInfo>,
-    /// Forwards compatibility. Unknown keys from future versions of Cargo
-    /// will be stored here and retained when the file is saved.
-    #[serde(flatten)]
-    pub other: BTreeMap<String, serde_json::Value>,
 }
 
 /// Identifier for a specific version of a package in a specific source.
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct PackageId {
+    /// Identifier of the package from its `Cargo.toml`.
     pub name: String,
+    /// Installed SemVer version.
     pub version: Version,
+    /// Identifier that describes the source of this package, like the creates.io registry, git
+    /// or a local project folder.
     pub source_id: SourceId,
 }
 
@@ -218,14 +219,8 @@ impl CanonicalUrl {
     }
 }
 
-/// Tracking information for the installation of a single package.
-///
-/// This track the settings that were used when the package was installed.
-/// Future attempts to install the same package will check these settings to
-/// determine if it needs to be rebuilt/reinstalled. If nothing has changed,
-/// then Cargo will inform the user that it is "up to date".
-///
-/// This is only used for the v2 format.
+/// Tracking information for the installation of a single package. This tracks the settings that
+/// were used when the package was installed.
 #[derive(Debug, Deserialize)]
 pub struct InstallInfo {
     pub version_req: Option<String>,
@@ -233,19 +228,28 @@ pub struct InstallInfo {
     pub bins: BTreeSet<String>,
     /// Set of features explicitly enabled.
     pub features: BTreeSet<String>,
+    /// All features enabled.
     pub all_features: bool,
+    /// Default features disabled.
     pub no_default_features: bool,
-    /// Either "debug" or "release".
+    /// Profile use for installation, usually "debug" or "release".
     pub profile: String,
-    /// The installation target.
-    /// Either the host or the value specified in `--target`.
-    /// None if unknown (when loading from v1).
-    pub target: Option<String>,
-    /// Output of `rustc -V`.
-    /// None if unknown (when loading from v1).
-    /// Currently not used, possibly may be used in the future.
-    pub rustc: Option<String>,
-    /// Forwards compatibility.
-    #[serde(flatten)]
-    pub other: BTreeMap<String, serde_json::Value>,
+    /// The installation target. Either the host or the value specified in `--target`.
+    pub target: String,
+    /// Output of `rustc -V --verbose`.
+    #[serde(deserialize_with = "deser::version_meta")]
+    pub rustc: VersionMeta,
+}
+
+mod deser {
+    use rustc_version::VersionMeta;
+    use serde::{de, Deserialize, Deserializer};
+
+    pub fn version_meta<'de, D>(deserializer: D) -> Result<VersionMeta, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let string = String::deserialize(deserializer)?;
+        rustc_version::version_meta_for(&string).map_err(de::Error::custom)
+    }
 }
