@@ -13,11 +13,19 @@ use crate::{
     table::RegistryTable,
 };
 
+/// Remote Git repository location for the main <https://crates.io> registry.
+const CRATES_IO_GIT_URL: &str = "https://github.com/rust-lang/crates.io-index";
+
 pub(crate) fn check_update(
     index: &Index,
     package: &PackageId,
     pre: bool,
 ) -> Result<Option<RegistryInfo>> {
+    if package.source_id.url.as_str() != CRATES_IO_GIT_URL {
+        // Currently only support the main crates.io registry.
+        return Ok(None);
+    }
+
     let krate = index
         .crate_(&package.name)
         .context("failed finding package")?;
