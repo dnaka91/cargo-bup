@@ -1,10 +1,12 @@
-use std::{fmt, fs::File, io::Write};
+use std::{fmt, fs::File, io::Write, sync::Arc};
 
 use anyhow::Result;
 use clap::{Args, IntoApp, Parser, Subcommand};
 use clap_complete::Shell;
 use crates_index::Index;
 use owo_colors::OwoColorize;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use thread_local::ThreadLocal;
 
 use crate::{
     cargo::{CrateListingV2, SourceKind},
@@ -78,8 +80,8 @@ fn main() -> Result<()> {
     }
 
     let info = load_crate_state()?;
-    let index = load_index()?;
-    let updates = collect_updates(info, &index, &cmd.select_args)?;
+    update_index()?;
+    let updates = collect_updates(info, &cmd.select_args)?;
 
     println!();
 
@@ -114,9 +116,9 @@ fn load_crate_state() -> Result<CrateListingV2> {
     Ok(info)
 }
 
-fn load_index() -> Result<Index> {
+fn update_index() -> Result<()> {
     let _guard = progress(format_args!(
-        "{} loading {}",
+        "{} updating {}",
         "[2/3]".bold(),
         "crates.io index".green().bold()
     ));
@@ -124,40 +126,51 @@ fn load_index() -> Result<Index> {
     let mut index = Index::new_cargo_default()?;
     index.update()?;
 
-    Ok(index)
+    Ok(())
 }
 
-fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Result<Updates> {
+fn collect_updates(info: CrateListingV2, args: &SelectArgs) -> Result<Updates> {
     let _guard = progress(format_args!(
         "{} collecting {}",
         "[3/3]".bold(),
         "updates".green().bold()
     ));
-    let mut updates = Updates::default();
 
-    for (package, info) in info.installs.into_iter() {
-        match package.source_id.kind {
-            SourceKind::Git(ref git_ref) => {
-                if let Some(update) = git::check_update(&package, git_ref, args.git)? {
-                    updates.git.insert(package, UpdateInfo::new(info, update));
-                }
-            }
-            SourceKind::Path => {
-                if let Some(update) = path::check_update(&package, args.path)? {
-                    updates.path.insert(package, UpdateInfo::new(info, update));
-                }
-            }
-            SourceKind::Registry => {
-                if let Some(update) = registry::check_update(index, &package, args.pre)? {
-                    updates
-                        .registry
-                        .insert(package, UpdateInfo::new(info, update));
-                }
-            }
-        }
-    }
+    let tls = Arc::new(ThreadLocal::new());
 
-    Ok(updates)
+    info.installs
+        .into_par_iter()
+        .try_fold(Updates::default, |mut updates, (package, info)| {
+            match package.source_id.kind {
+                SourceKind::Git(ref git_ref) => {
+                    if let Some(update) = git::check_update(&package, git_ref, args.git)? {
+                        updates.git.insert(package, UpdateInfo::new(info, update));
+                    }
+                }
+                SourceKind::Path => {
+                    if let Some(update) = path::check_update(&package, args.path)? {
+                        updates.path.insert(package, UpdateInfo::new(info, update));
+                    }
+                }
+                SourceKind::Registry => {
+                    let tls = Arc::clone(&tls);
+                    let index = tls.get_or_try(Index::new_cargo_default)?;
+
+                    if let Some(update) = registry::check_update(index, &package, args.pre)? {
+                        updates
+                            .registry
+                            .insert(package, UpdateInfo::new(info, update));
+                    }
+                }
+            }
+            anyhow::Ok(updates)
+        })
+        .try_reduce(Updates::default, |mut a, mut b| {
+            a.registry.append(&mut b.registry);
+            a.git.append(&mut b.git);
+            a.path.append(&mut b.path);
+            Ok(a)
+        })
 }
 
 struct ProgressGuard;
