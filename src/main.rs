@@ -1,26 +1,19 @@
-use std::{
-    collections::BTreeMap,
-    fmt,
-    fs::File,
-    hash::{Hash, Hasher},
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::{fmt, fs::File, io::Write};
 
-use anyhow::{Context, Result};
-use cargo::{CanonicalUrl, InstallInfo, PackageId};
+use anyhow::Result;
 use clap::{Args, IntoApp, Parser, Subcommand};
 use clap_complete::Shell;
 use crates_index::Index;
-use git2::{Commit, Oid, Repository, RepositoryInitOptions};
 use owo_colors::OwoColorize;
-use semver::Version;
-use siphasher::sip::SipHasher24;
 
-use crate::cargo::{CrateListingV2, GitReference, SourceKind};
+use crate::{
+    cargo::{CrateListingV2, SourceKind},
+    models::{UpdateInfo, Updates},
+};
 
 mod cargo;
 mod git;
+mod models;
 mod path;
 mod registry;
 mod table;
@@ -145,84 +138,20 @@ fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Re
     for (package, info) in info.installs.into_iter() {
         match package.source_id.kind {
             SourceKind::Git(ref git_ref) => {
-                if !args.git {
-                    continue;
-                }
-
-                let commit_id = match package.source_id.precise.as_deref() {
-                    Some(c) => c.parse()?,
-                    None => continue,
-                };
-
-                let repo_path = get_git_repo_path(&package.source_id.canonical_url)?;
-                let repo = open_or_init_repo(&repo_path)?;
-
-                let mut remote = repo.remote_anonymous(package.source_id.url.as_str())?;
-
-                let (refspec, target, r#type) = match git_ref {
-                    GitReference::Tag(_) => continue, // don't touch tags (yet)
-                    GitReference::Branch(b) => (
-                        format!("+refs/heads/{b}:refs/remotes/origin/{b}"),
-                        format!("refs/remotes/origin/{b}"),
-                        format!("branch {b}"),
-                    ),
-                    GitReference::Rev(_) => continue, // don't move pinned revs
-                    GitReference::DefaultBranch => (
-                        "+HEAD:refs/remotes/origin/HEAD".to_owned(),
-                        "refs/remotes/origin/HEAD".to_owned(),
-                        "HEAD".to_owned(),
-                    ),
-                };
-
-                remote.fetch(&[refspec], None, None)?;
-
-                let current = repo.find_commit(commit_id)?;
-                let latest = repo.find_reference(&target)?.peel_to_commit()?;
-
-                let changes = git_changes(&repo, &current, &latest)?;
-
-                if changes.commits > 0 {
-                    updates.git.insert(
-                        package,
-                        UpdateInfo::new(
-                            info,
-                            GitInfo {
-                                r#type,
-                                old_commit: current.id(),
-                                new_commit: latest.id(),
-                                changes,
-                            },
-                        ),
-                    );
+                if let Some(update) = git::check_update(&package, git_ref, args.git)? {
+                    updates.git.insert(package, UpdateInfo::new(info, update));
                 }
             }
             SourceKind::Path => {
-                if !args.path {
-                    continue;
+                if let Some(update) = path::check_update(&package, args.path)? {
+                    updates.path.insert(package, UpdateInfo::new(info, update));
                 }
-
-                updates
-                    .path
-                    .insert(package, UpdateInfo::new(info, PathInfo {}));
             }
             SourceKind::Registry => {
-                let krate = index
-                    .crate_(&package.name)
-                    .context("failed finding package")?;
-
-                let latest = Version::parse(krate.latest_version().version())?;
-
-                if !latest.pre.is_empty() && !args.pre {
-                    continue;
-                }
-
-                if latest > package.version {
-                    if latest.major != package.version.major {}
-
-                    updates.registry.insert(
-                        package,
-                        UpdateInfo::new(info, RegistryInfo { version: latest }),
-                    );
+                if let Some(update) = registry::check_update(index, &package, args.pre)? {
+                    updates
+                        .registry
+                        .insert(package, UpdateInfo::new(info, update));
                 }
             }
         }
@@ -230,40 +159,6 @@ fn collect_updates(info: CrateListingV2, index: &Index, args: &SelectArgs) -> Re
 
     Ok(updates)
 }
-
-#[derive(Default)]
-struct Updates {
-    registry: BTreeMap<PackageId, UpdateInfo<RegistryInfo>>,
-    git: BTreeMap<PackageId, UpdateInfo<GitInfo>>,
-    path: BTreeMap<PackageId, UpdateInfo<PathInfo>>,
-}
-
-struct UpdateInfo<T> {
-    install_info: InstallInfo,
-    extra: T,
-}
-
-impl<T> UpdateInfo<T> {
-    fn new(install_info: InstallInfo, extra: T) -> Self {
-        Self {
-            install_info,
-            extra,
-        }
-    }
-}
-
-struct RegistryInfo {
-    version: Version,
-}
-
-struct GitInfo {
-    r#type: String,
-    old_commit: Oid,
-    new_commit: Oid,
-    changes: GitChanges,
-}
-
-struct PathInfo {}
 
 struct ProgressGuard;
 
@@ -277,64 +172,6 @@ fn progress(msg: fmt::Arguments) -> ProgressGuard {
     print!("{}... ", msg);
     std::io::stdout().flush().ok();
     ProgressGuard
-}
-
-struct GitChanges {
-    commits: usize,
-    files_changed: usize,
-    insertions: usize,
-    deletions: usize,
-}
-
-fn git_changes<'r>(repo: &'r Repository, old: &Commit<'r>, new: &Commit<'r>) -> Result<GitChanges> {
-    let (ahead, behind) = repo.graph_ahead_behind(old.id(), new.id())?;
-    if ahead != 0 {
-        println!("hm... local HEAD shouldn't be ahead of remote HEAD");
-    }
-
-    let diff_stats = repo
-        .diff_tree_to_tree(Some(&old.tree()?), Some(&new.tree()?), None)?
-        .stats()?;
-
-    Ok(GitChanges {
-        commits: behind,
-        files_changed: diff_stats.files_changed(),
-        insertions: diff_stats.insertions(),
-        deletions: diff_stats.deletions(),
-    })
-}
-
-fn get_git_repo_path(canonical_url: &CanonicalUrl) -> Result<PathBuf> {
-    let ident = canonical_url
-        .0
-        .path_segments()
-        .and_then(|s| s.last())
-        .unwrap_or("");
-
-    let ident = if ident.is_empty() { "_empty" } else { ident };
-
-    let mut hasher = SipHasher24::new();
-    canonical_url.hash(&mut hasher);
-    let hash = hex::encode(hasher.finish().to_le_bytes());
-    let path = format!("{ident}-{hash}");
-
-    let cargo_home = home::cargo_home()?;
-    let repo_path = cargo_home.join("git/db").join(&path);
-
-    Ok(repo_path)
-}
-
-fn open_or_init_repo(path: &Path) -> Result<Repository, git2::Error> {
-    if path.is_dir() {
-        Repository::open_bare(path)
-    } else {
-        Repository::init_opts(
-            path,
-            RepositoryInitOptions::new()
-                .external_template(false)
-                .bare(true),
-        )
-    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,5 @@
+//! Printing of data (to the terminal) in a table-ish formatting.
+
 use std::{
     collections::BTreeMap,
     fmt::{self, Display},
@@ -6,7 +8,7 @@ use std::{
 use owo_colors::OwoColorize;
 use semver::Version;
 
-use crate::GitInfo;
+use crate::models::GitInfo;
 
 #[derive(Default)]
 pub struct RegistryTable(Vec<[String; 3]>);

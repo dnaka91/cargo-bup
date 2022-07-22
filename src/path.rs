@@ -2,9 +2,21 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use anyhow::Result;
 use owo_colors::OwoColorize;
 
-use crate::{cargo::PackageId, PathInfo, UpdateInfo};
+use crate::{
+    cargo::PackageId,
+    models::{PathInfo, UpdateInfo},
+};
+
+pub(crate) fn check_update(_package: &PackageId, _path: bool) -> Result<Option<PathInfo>> {
+    if !_path {
+        return Ok(None);
+    }
+
+    Ok(Some(PathInfo {}))
+}
 
 pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<PathInfo>>, enabled: bool) {
     if !enabled {

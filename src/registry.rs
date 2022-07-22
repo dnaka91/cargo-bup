@@ -2,15 +2,34 @@
 
 use std::{collections::BTreeMap, process::Command};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use crates_index::Index;
 use owo_colors::OwoColorize;
 use semver::Version;
 
 use crate::{
     cargo::{InstallInfo, PackageId},
+    models::{RegistryInfo, UpdateInfo},
     table::RegistryTable,
-    RegistryInfo, UpdateInfo,
 };
+
+pub(crate) fn check_update(
+    index: &Index,
+    package: &PackageId,
+    pre: bool,
+) -> Result<Option<RegistryInfo>> {
+    let krate = index
+        .crate_(&package.name)
+        .context("failed finding package")?;
+
+    let latest = Version::parse(krate.latest_version().version())?;
+
+    if !latest.pre.is_empty() && !pre {
+        return Ok(None);
+    }
+
+    Ok((latest > package.version).then(|| RegistryInfo { version: latest }))
+}
 
 pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInfo>>) {
     if updates.is_empty() {
