@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 
 use git2::Oid;
-use owo_colors::{AnsiColors, Color, OwoColorize};
+use owo_colors::OwoColorize;
 use semver::Version;
 use tabled::{
     object::{Columns, Rows, Segment},
