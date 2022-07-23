@@ -1,4 +1,4 @@
-//! Handling of crates that were installed from **the main <crates.io> registry**.
+//! Handling of crates that were installed from **the main <https://crates.io> registry**.
 
 use std::{collections::BTreeMap, process::Command};
 

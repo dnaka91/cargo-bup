@@ -100,6 +100,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// Get the current state of all installed crates from the `.crates2.json` file that cargo
+/// maintains for all binaries.
 fn load_crate_state() -> Result<CrateListingV2> {
     let _guard = progress(format_args!(
         "{} loading {}",
@@ -116,6 +118,7 @@ fn load_crate_state() -> Result<CrateListingV2> {
     Ok(info)
 }
 
+/// Load and udpate the crates.io registry to the latest version from remote.
 fn update_index() -> Result<()> {
     let _guard = progress(format_args!(
         "{} updating {}",
@@ -173,6 +176,8 @@ fn collect_updates(info: CrateListingV2, args: &SelectArgs) -> Result<Updates> {
         })
 }
 
+/// A guard created by [`progress`], that will finish the currently written line with a `done`
+/// at the end, when this guard is dropped.
 struct ProgressGuard;
 
 impl Drop for ProgressGuard {
@@ -181,8 +186,10 @@ impl Drop for ProgressGuard {
     }
 }
 
+/// Print the given message, without writing a new line. Instead a [`ProgressGuard`] is returned,
+/// that will finish the current line when dropped.
 fn progress(msg: fmt::Arguments) -> ProgressGuard {
-    print!("{}... ", msg);
+    print!("{msg}... ");
     std::io::stdout().flush().ok();
     ProgressGuard
 }

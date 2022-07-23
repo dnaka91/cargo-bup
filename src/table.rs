@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 
 use git2::Oid;
-use owo_colors::OwoColorize;
+use owo_colors::{AnsiColors, Color, OwoColorize};
 use semver::Version;
 use tabled::{
     object::{Columns, Rows, Segment},
@@ -13,6 +13,7 @@ use tabled::{
 
 use crate::models::GitInfo;
 
+/// The registry table prints updates for crates that come directly from the a crate registry.
 #[derive(Default)]
 pub struct RegistryTable(Vec<RegistryRow>);
 
@@ -77,6 +78,7 @@ impl Display for RegistryTable {
     }
 }
 
+/// Single row for the [`RegistryTable`], that can be used with [`tabled`].
 #[derive(Tabled)]
 #[tabled(rename_all = "PascalCase")]
 struct RegistryRow {
@@ -85,6 +87,8 @@ struct RegistryRow {
     latest: String,
 }
 
+/// A SemVer version that is a colored, based on how much two versions differ from one another. The
+/// higher the difference, the stronger colors are used.
 struct ColorizedVersion<'a> {
     current: &'a Version,
     latest: &'a Version,
@@ -122,6 +126,7 @@ impl<'a> Display for ColorizedVersion<'a> {
     }
 }
 
+/// The git table prints updates for crates that come from remote Git repositories.
 #[derive(Default)]
 pub struct GitTable<'a>(Vec<GitRow<'a>>);
 
@@ -191,6 +196,7 @@ impl<'a> Display for GitTable<'a> {
     }
 }
 
+/// Single row for the [`GitTable`], that can be used with [`tabled`].
 #[derive(Tabled)]
 struct GitRow<'a> {
     #[tabled(rename = "Name")]
