@@ -76,13 +76,13 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, 
     } else if updates.is_empty() {
         println!("no {} crate updates", "git".green());
     } else {
-        let gits = updates
+        let table = updates
             .iter()
             .map(|(pkg, info)| (pkg.name.as_str(), &info.extra))
-            .collect::<BTreeMap<_, _>>();
+            .collect::<GitTable>();
 
         println!("<<< Updates from {} >>>", "git".green());
-        println!("\n{}\n", GitTable(gits));
+        println!("\n{table}\n");
     }
 }
 

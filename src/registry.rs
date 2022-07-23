@@ -43,13 +43,13 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInf
     if updates.is_empty() {
         println!("no {} crate updates", "registry".green());
     } else {
-        let registry = updates
+        let table = updates
             .iter()
             .map(|(pkg, info)| (pkg.name.as_str(), &pkg.version, &info.extra.version))
             .collect::<RegistryTable>();
 
         println!("<<< Updates from the {} >>>", "registry".green());
-        println!("\n{registry}\n");
+        println!("\n{table}\n");
     }
 }
 

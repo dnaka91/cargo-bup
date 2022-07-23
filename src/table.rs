@@ -1,61 +1,28 @@
 //! Printing of data (to the terminal) in a table-ish formatting.
 
-use std::{
-    collections::BTreeMap,
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
+use git2::Oid;
 use owo_colors::OwoColorize;
 use semver::Version;
+use tabled::{
+    object::{Columns, Rows, Segment},
+    style::Border,
+    Alignment, Header, ModifyObject, Padding, Style, TableIteratorExt, Tabled,
+};
 
 use crate::models::GitInfo;
 
 #[derive(Default)]
-pub struct RegistryTable(Vec<[String; 3]>);
+pub struct RegistryTable(Vec<RegistryRow>);
 
 impl RegistryTable {
     pub fn add(&mut self, name: &str, current: &Version, latest: &Version) {
-        self.0.push([
-            name.to_owned(),
-            current.to_string(),
-            ColorizedVersion::new(current, latest).to_string(),
-        ]);
-    }
-}
-
-impl Display for RegistryTable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut column_widths = ["Name".len(), "Current".len()];
-
-        for row in &self.0 {
-            column_widths[0] = column_widths[0].max(row[0].len());
-            column_widths[1] = column_widths[1].max(row[1].len());
-        }
-
-        writeln!(
-            f,
-            "  {} major · {} minor · {} patch\n",
-            "◆".yellow(),
-            "◆".green(),
-            "◆".blue()
-        )?;
-
-        write!(f, "{:width$}", "Name", width = column_widths[0] + 2)?;
-        write!(f, "{:width$}", "Current", width = column_widths[1] + 5)?;
-        writeln!(f, "Latest")?;
-        writeln!(
-            f,
-            "{}",
-            "─".repeat(column_widths[0] + column_widths[1] + 16)
-        )?;
-
-        for row in &self.0 {
-            write!(f, "{:width$}", row[0], width = column_widths[0] + 2)?;
-            write!(f, "{:width$}", row[1], width = column_widths[1] + 2)?;
-            writeln!(f, "➞  {}", row[2])?;
-        }
-
-        Ok(())
+        self.0.push(RegistryRow {
+            name: name.to_owned(),
+            current: current.to_string(),
+            latest: ColorizedVersion::new(current, latest).to_string(),
+        });
     }
 }
 
@@ -68,6 +35,54 @@ impl<'a> FromIterator<(&'a str, &'a Version, &'a Version)> for RegistryTable {
 
         table
     }
+}
+
+impl Display for RegistryTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "{}",
+            self.0
+                .as_slice()
+                .table()
+                // Add color legend as header
+                .with(Header(format!(
+                    "  {} major · {} minor · {} patch\n",
+                    "◆".yellow(),
+                    "◆".green(),
+                    "◆".blue()
+                )))
+                // Align color legend to the center
+                .with(Rows::first().modify().with(Alignment::center()))
+                // Draw straight line under the headers
+                .with(
+                    tabled::Style::blank().lines([(
+                        2,
+                        tabled::Style::blank()
+                            .get_horizontal()
+                            .horizontal(Some('─'))
+                            .intersection(Some('─'))
+                    )])
+                )
+                // Draw arrow between current and latest version
+                .with(
+                    Segment::new(2.., 1..=1)
+                        .modify()
+                        .with(Border::default().right('➞'))
+                )
+                // Add spacing between current and latest version
+                .with(Columns::single(1).modify().with(Padding::new(1, 2, 0, 0)))
+                .with(Columns::single(2).modify().with(Padding::new(2, 1, 0, 0)))
+        )
+    }
+}
+
+#[derive(Tabled)]
+#[tabled(rename_all = "PascalCase")]
+struct RegistryRow {
+    name: String,
+    current: String,
+    latest: String,
 }
 
 struct ColorizedVersion<'a> {
@@ -107,53 +122,117 @@ impl<'a> Display for ColorizedVersion<'a> {
     }
 }
 
-pub struct GitTable<'a>(pub(crate) BTreeMap<&'a str, &'a GitInfo>);
+#[derive(Default)]
+pub struct GitTable<'a>(Vec<GitRow<'a>>);
+
+impl<'a> GitTable<'a> {
+    pub fn add(&mut self, name: &'a str, info: &'a GitInfo) {
+        self.0.push(GitRow {
+            name,
+            r#type: &info.r#type,
+            old_commit: info.old_commit,
+            new_commit: info.new_commit,
+            commits: info.changes.commits,
+            files_changed: info.changes.files_changed,
+            insertions: info.changes.insertions,
+            deletions: info.changes.deletions,
+        });
+    }
+}
+
+impl<'a> FromIterator<(&'a str, &'a GitInfo)> for GitTable<'a> {
+    fn from_iter<T: IntoIterator<Item = (&'a str, &'a GitInfo)>>(iter: T) -> Self {
+        let mut table = Self::default();
+        for (name, info) in iter {
+            table.add(name, info);
+        }
+
+        table
+    }
+}
 
 impl<'a> Display for GitTable<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name_width = self
-            .0
-            .keys()
-            .max_by_key(|k| k.len())
-            .map(|k| k.len())
-            .unwrap_or(4);
-        let type_width = self
-            .0
-            .values()
-            .max_by_key(|v| v.r#type.len())
-            .map(|v| v.r#type.len())
-            .unwrap_or(4);
-
-        writeln!(
-            f,
-            "{:name_width$}  {:type_width$}  Old         New      Changes",
-            "Name", "Type"
-        )?;
         writeln!(
             f,
             "{}",
-            "─".repeat(name_width + 2 + type_width + 2 + (7 + 2) * 2 + 1 + 26)
-        )?;
-
-        for (name, info) in &self.0 {
-            writeln!(
-                f,
-                "{name:name_width$}  {:type_width$}  {:.7}  ➞  {:.7}  {}",
-                info.r#type.blue(),
-                info.old_commit.cyan(),
-                info.new_commit.cyan(),
-                format_args!(
-                    "{:2} commits | {:2} files changed | {} {}",
-                    info.changes.commits.yellow(),
-                    info.changes.files_changed.white(),
-                    format_args!("+{}", info.changes.insertions).green(),
-                    format_args!("-{}", info.changes.deletions).red()
+            self.0
+                .as_slice()
+                .table()
+                // Draw strait line under the headers
+                .with(
+                    Style::blank().lines([(
+                        1,
+                        Style::blank()
+                            .get_horizontal()
+                            .horizontal(Some('─'))
+                            .intersection(Some('─')),
+                    )]),
                 )
-            )?;
-        }
-
-        Ok(())
+                // Draw arrow between old and new commit
+                .with(
+                    Segment::new(1.., 2..=2)
+                        .modify()
+                        .with(Border::default().right('➞')),
+                )
+                // Add spacing between old and new commit
+                .with(Columns::single(2).modify().with(Padding::new(1, 2, 0, 0)))
+                .with(Columns::single(3).modify().with(Padding::new(2, 1, 0, 0)))
+                // Align commit details and reduce padding
+                .with(
+                    Segment::new(1.., 4..)
+                        .modify()
+                        .with(Alignment::right())
+                        .with(Padding::zero()),
+                )
+                .with(Columns::single(4).modify().with(Padding::new(1, 0, 0, 0)))
+                .with(Columns::single(7).modify().with(Padding::new(0, 1, 0, 0)))
+        )
     }
+}
+
+#[derive(Tabled)]
+struct GitRow<'a> {
+    #[tabled(rename = "Name")]
+    name: &'a str,
+    #[tabled(rename = "Type", display_with = "display_type")]
+    r#type: &'a str,
+    #[tabled(rename = "Old", display_with = "display_commit")]
+    old_commit: Oid,
+    #[tabled(rename = "New", display_with = "display_commit")]
+    new_commit: Oid,
+    #[tabled(rename = "Changes", display_with = "display_commit_count")]
+    commits: usize,
+    #[tabled(rename = "", display_with = "display_files_changed")]
+    files_changed: usize,
+    #[tabled(rename = "", display_with = "display_insertions")]
+    insertions: usize,
+    #[tabled(rename = "", display_with = "display_deletions")]
+    deletions: usize,
+}
+
+fn display_type(value: &str) -> String {
+    value.blue().to_string()
+}
+
+fn display_commit(value: &Oid) -> String {
+    format!("{:.7}", value.cyan())
+}
+
+fn display_commit_count(value: &usize) -> String {
+    format!("{} commits", value.yellow())
+}
+
+fn display_files_changed(value: &usize) -> String {
+    format!("{} files changed", value.white())
+}
+
+fn display_insertions(value: &usize) -> String {
+    format_args!("+{value}").green().to_string()
+}
+
+fn display_deletions(value: &usize) -> String {
+    format_args!("-{value}").red().to_string()
 }
 
 #[cfg(test)]
