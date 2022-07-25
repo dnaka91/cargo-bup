@@ -1,8 +1,7 @@
 use std::{fmt, fs::File, io::Write, sync::Arc};
 
 use anyhow::Result;
-use clap::{Args, IntoApp, Parser, Subcommand};
-use clap_complete::Shell;
+use cli::SelectArgs;
 use crates_index::Index;
 use owo_colors::OwoColorize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -10,72 +9,23 @@ use thread_local::ThreadLocal;
 
 use crate::{
     cargo::{CrateListingV2, SourceKind},
+    cli::Subcmd,
     models::{UpdateInfo, Updates},
 };
 
 mod cargo;
+mod cli;
 mod git;
 mod models;
 mod path;
 mod registry;
 mod table;
 
-/// Update your cargo-installed binaries.
-#[derive(Parser)]
-#[clap(about, author, version, bin_name = "cargo")]
-enum Opt {
-    /// Update your cargo-installed binaries.
-    Bup(Command),
-}
-
-#[derive(Args)]
-struct Command {
-    #[clap(flatten)]
-    select_args: SelectArgs,
-    #[clap(short = 'n', long)]
-    dry_run: bool,
-    #[clap(subcommand)]
-    subcmd: Option<Subcmd>,
-}
-
-#[derive(Args)]
-struct SelectArgs {
-    /// Include pre-releases in updates.
-    #[clap(long)]
-    pre: bool,
-    /// Include crates installed from git repos (potentially slow).
-    ///
-    /// To find updates, each crate's local Git repository is updated against the remote repo.
-    #[clap(long)]
-    git: bool,
-    /// Include crates installed from local paths (potentially slow).
-    ///
-    /// There is no way of checking the freshness for a crate that was installed locally, so cargo
-    /// is invoked for each entry unconditionally.
-    #[clap(long)]
-    path: bool,
-}
-
-#[derive(Subcommand)]
-enum Subcmd {
-    /// Generate shell completions, writing them to the standard output.
-    Completions {
-        /// The shell type to generate completions for.
-        #[clap(value_enum)]
-        shell: Shell,
-    },
-}
-
 fn main() -> Result<()> {
-    let Opt::Bup(cmd) = Opt::parse();
+    let cmd = cli::parse();
 
     if let Some(Subcmd::Completions { shell }) = cmd.subcmd {
-        clap_complete::generate(
-            shell,
-            &mut Opt::command(),
-            env!("CARGO_PKG_NAME"),
-            &mut std::io::stdout().lock(),
-        );
+        cli::generate_completions(shell);
         return Ok(());
     }
 
@@ -118,7 +68,7 @@ fn load_crate_state() -> Result<CrateListingV2> {
     Ok(info)
 }
 
-/// Load and udpate the crates.io registry to the latest version from remote.
+/// Load and update the crates.io registry to the latest version from remote.
 fn update_index() -> Result<()> {
     let _guard = progress(format_args!(
         "{} updating {}",
@@ -132,6 +82,11 @@ fn update_index() -> Result<()> {
     Ok(())
 }
 
+/// Fetch updates for all installed binaries, eventually filtering out entires, based on the user
+/// provided filter flags (or rather inclusing flags).
+///
+/// The update information is collected into several lists, one for each source, as the printable
+/// information and installation logic varies for each source.
 fn collect_updates(info: CrateListingV2, args: &SelectArgs) -> Result<Updates> {
     let _guard = progress(format_args!(
         "{} collecting {}",
@@ -196,14 +151,6 @@ fn progress(msg: fmt::Arguments) -> ProgressGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn verify_app() {
-        use clap::CommandFactory;
-        Opt::command().debug_assert();
-    }
-
     #[test]
     fn int_len() {
         let value = 150usize;

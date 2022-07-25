@@ -1,3 +1,5 @@
+//! Cargo specific logic to parse the binary crate cache located in `$CARGO_HOME/.crates2.json`.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     hash::Hash,
@@ -76,6 +78,7 @@ pub struct SourceId {
 }
 
 impl SourceId {
+    /// Create a new source from the given source, URL and optional name.
     fn new(kind: SourceKind, url: Url, name: Option<&str>) -> Result<Self> {
         Ok(Self {
             kind,
@@ -86,6 +89,16 @@ impl SourceId {
         })
     }
 
+    /// Parse the source ID from an URL as it appears in the binary crate cache file.
+    ///
+    /// The format is as follows:
+    /// ```txt
+    /// <crate-name> <version> (<source-type>+<source-url>)
+    /// ```
+    ///
+    /// The `crate-name` is the installed crate's name, the `version` is the currently installed
+    /// version, and `source-type` + `source-url` describe where the crate came from (its source
+    /// code).
     fn from_url(string: &str) -> Result<Self> {
         let (kind, url) = string
             .split_once('+')
@@ -160,6 +173,9 @@ pub enum GitReference {
     DefaultBranch,
 }
 
+/// The canonical URL is a sanitized version of the original URL, providing a stable version that
+/// can be used for hashing, which is in turn used to determine the folder of Git repositories as
+/// used by `cargo`.
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct CanonicalUrl(pub Url);
 
@@ -242,9 +258,12 @@ pub struct InstallInfo {
 }
 
 mod deser {
+    //! Custom [`serde`] deserializer implementations for external types.
+
     use rustc_version::VersionMeta;
     use serde::{de, Deserialize, Deserializer};
 
+    /// Deserialize the text output of `rustc -vV` into a typed [`VersionMeta`].
     pub fn version_meta<'de, D>(deserializer: D) -> Result<VersionMeta, D::Error>
     where
         D: Deserializer<'de>,
