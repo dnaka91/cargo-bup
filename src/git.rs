@@ -81,7 +81,6 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, 
             .map(|(pkg, info)| (pkg.name.as_str(), &info.extra))
             .collect::<GitTable>();
 
-        println!("<<< Updates from {} >>>", "git".green());
         println!("\n{table}\n");
     }
 }

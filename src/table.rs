@@ -48,17 +48,27 @@ impl Display for RegistryTable {
                 .table()
                 // Add color legend as header
                 .with(Header(format!(
-                    "  {} major · {} minor · {} patch\n",
+                    "{} major · {} minor · {} patch",
                     "◆".yellow(),
                     "◆".green(),
                     "◆".blue()
                 )))
-                // Align color legend to the center
-                .with(Rows::first().modify().with(Alignment::center()))
+                .with(Header(
+                    format_args!("Updates from the {}", "registry".green())
+                        .bold()
+                        .to_string()
+                ))
+                // Align headers to the center
+                .with(
+                    Rows::new(0..=1)
+                        .modify()
+                        .with(Alignment::center())
+                        .with(Padding::new(1, 1, 0, 1))
+                )
                 // Draw straight line under the headers
                 .with(
                     tabled::Style::blank().lines([(
-                        2,
+                        3,
                         tabled::Style::blank()
                             .get_horizontal()
                             .horizontal(Some('─'))
@@ -67,7 +77,7 @@ impl Display for RegistryTable {
                 )
                 // Draw arrow between current and latest version
                 .with(
-                    Segment::new(2.., 1..=1)
+                    Segment::new(3.., 1..=1)
                         .modify()
                         .with(Border::default().right('➞'))
                 )
@@ -164,10 +174,20 @@ impl<'a> Display for GitTable<'a> {
             self.0
                 .as_slice()
                 .table()
+                .with(Header(
+                    format_args!("Updates from {}", "git".green())
+                        .bold()
+                        .to_string()
+                )).with(
+                    Rows::first()
+                        .modify()
+                        .with(Alignment::center())
+                        .with(Padding::new(1, 1, 0, 1))
+                )
                 // Draw strait line under the headers
                 .with(
                     Style::blank().lines([(
-                        1,
+                        2,
                         Style::blank()
                             .get_horizontal()
                             .horizontal(Some('─'))
@@ -176,7 +196,7 @@ impl<'a> Display for GitTable<'a> {
                 )
                 // Draw arrow between old and new commit
                 .with(
-                    Segment::new(1.., 2..=2)
+                    Segment::new(2.., 2..=2)
                         .modify()
                         .with(Border::default().right('➞')),
                 )
@@ -185,7 +205,7 @@ impl<'a> Display for GitTable<'a> {
                 .with(Columns::single(3).modify().with(Padding::new(2, 1, 0, 0)))
                 // Align commit details and reduce padding
                 .with(
-                    Segment::new(1.., 4..)
+                    Segment::new(2.., 4..)
                         .modify()
                         .with(Alignment::right())
                         .with(Padding::zero()),

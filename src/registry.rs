@@ -48,7 +48,6 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInf
             .map(|(pkg, info)| (pkg.name.as_str(), &pkg.version, &info.extra.version))
             .collect::<RegistryTable>();
 
-        println!("<<< Updates from the {} >>>", "registry".green());
         println!("\n{table}\n");
     }
 }
