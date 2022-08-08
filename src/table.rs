@@ -178,7 +178,8 @@ impl<'a> Display for GitTable<'a> {
                     format_args!("Updates from {}", "git".green())
                         .bold()
                         .to_string()
-                )).with(
+                ))
+                .with(
                     Rows::first()
                         .modify()
                         .with(Alignment::center())

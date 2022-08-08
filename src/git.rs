@@ -4,6 +4,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::Result;
@@ -12,8 +13,9 @@ use owo_colors::OwoColorize;
 use siphasher::sip::SipHasher24;
 
 use crate::{
-    cargo::{CanonicalUrl, GitReference, PackageId},
-    models::{GitChanges, GitInfo, UpdateInfo},
+    cargo::{CanonicalUrl, GitReference, InstallInfo, PackageId},
+    common,
+    models::{GitChanges, GitInfo, GitTarget, UpdateInfo},
     table::GitTable,
 };
 
@@ -36,18 +38,20 @@ pub(crate) fn check_update(
 
     let mut remote = repo.remote_anonymous(package.source_id.url.as_str())?;
 
-    let (refspec, target, r#type) = match git_ref {
+    let (refspec, target, r#type, git_target) = match git_ref {
         GitReference::Tag(_) => return Ok(None), // don't touch tags (yet)
         GitReference::Branch(b) => (
             format!("+refs/heads/{b}:refs/remotes/origin/{b}"),
             format!("refs/remotes/origin/{b}"),
             format!("branch {b}"),
+            GitTarget::Branch(b.clone()),
         ),
         GitReference::Rev(_) => return Ok(None), // don't move pinned revs
         GitReference::DefaultBranch => (
             "+HEAD:refs/remotes/origin/HEAD".to_owned(),
             "refs/remotes/origin/HEAD".to_owned(),
             "HEAD".to_owned(),
+            GitTarget::Default,
         ),
     };
 
@@ -63,6 +67,7 @@ pub(crate) fn check_update(
         old_commit: current.id(),
         new_commit: latest.id(),
         changes,
+        target: git_target,
     }))
 }
 
@@ -89,14 +94,59 @@ pub(crate) fn install_updates(
     updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<GitInfo>)>,
 ) {
     let count = updates.len();
-
-    if count > 0 {
-        println!(
-            "start installing {} {} updates",
-            count.blue().bold(),
-            "git".green().bold()
-        );
+    if count == 0 {
+        return;
     }
+
+    println!(
+        "start installing {} {} updates",
+        count.blue().bold(),
+        "git".green().bold()
+    );
+
+    for (i, (pkg, info)) in updates.enumerate() {
+        println!(
+            "\n{} updating {} from {} to {}",
+            format_args!("[{}/{}]", i + 1, count).bold(),
+            pkg.name.green().bold(),
+            info.extra.old_commit.blue().bold(),
+            info.extra.new_commit.blue().bold()
+        );
+
+        if let Err(e) = cargo_install(
+            &pkg.name,
+            pkg.source_id.url.as_str(),
+            &info.extra.target,
+            &info.install_info,
+        ) {
+            println!(
+                "installing {} {}:\n{e}",
+                pkg.name.green().bold(),
+                "failed".red().bold()
+            )
+        }
+    }
+}
+
+fn cargo_install(name: &str, git_url: &str, git_ref: &GitTarget, info: &InstallInfo) -> Result<()> {
+    let mut cmd = Command::new("cargo");
+    cmd.args(&["install", name]);
+    cmd.args(&["--git", git_url]);
+
+    match git_ref {
+        GitTarget::Default => {} // This is the default, so nothing to do
+        GitTarget::Branch(b) => {
+            cmd.args(&["--branch", b]);
+        }
+    }
+
+    common::apply_cmd_args(&mut cmd, info);
+
+    if !cmd.status()?.success() {
+        eprintln!("failed installing `{name}`");
+    }
+
+    Ok(())
 }
 
 fn git_changes<'r>(repo: &'r Repository, old: &Commit<'r>, new: &Commit<'r>) -> Result<GitChanges> {

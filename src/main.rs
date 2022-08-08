@@ -15,6 +15,7 @@ use crate::{
 
 mod cargo;
 mod cli;
+mod common;
 mod git;
 mod models;
 mod path;
@@ -147,15 +148,4 @@ fn progress(msg: fmt::Arguments) -> ProgressGuard {
     print!("{msg}... ");
     std::io::stdout().flush().ok();
     ProgressGuard
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn int_len() {
-        let value = 150usize;
-        let len = (value as f64).log10().floor() as usize + 1;
-
-        assert_eq!(3, len);
-    }
 }

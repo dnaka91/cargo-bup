@@ -37,6 +37,7 @@ pub struct GitInfo {
     pub old_commit: Oid,
     pub new_commit: Oid,
     pub changes: GitChanges,
+    pub target: GitTarget,
 }
 
 pub struct GitChanges {
@@ -44,6 +45,11 @@ pub struct GitChanges {
     pub files_changed: usize,
     pub insertions: usize,
     pub deletions: usize,
+}
+
+pub enum GitTarget {
+    Default,
+    Branch(String),
 }
 
 pub struct PathInfo {}

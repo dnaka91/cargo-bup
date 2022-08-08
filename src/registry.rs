@@ -9,6 +9,7 @@ use semver::Version;
 
 use crate::{
     cargo::{InstallInfo, PackageId},
+    common,
     models::{RegistryInfo, UpdateInfo},
     table::RegistryTable,
 };
@@ -56,30 +57,31 @@ pub(crate) fn install_updates(
     updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<RegistryInfo>)>,
 ) {
     let count = updates.len();
+    if count == 0 {
+        return;
+    }
 
-    if count > 0 {
+    println!(
+        "start installing {} {} updates",
+        count.blue().bold(),
+        "registry".green().bold()
+    );
+
+    for (i, (pkg, info)) in updates.enumerate() {
         println!(
-            "start installing {} {} updates",
-            count.blue().bold(),
-            "registry".green().bold()
+            "\n{} updating {} from {} to {}",
+            format_args!("[{}/{}]", i + 1, count).bold(),
+            pkg.name.green().bold(),
+            pkg.version.blue().bold(),
+            info.extra.version.blue().bold()
         );
 
-        for (i, (pkg, info)) in updates.enumerate() {
+        if let Err(e) = cargo_install(&pkg.name, &info.extra.version, &info.install_info) {
             println!(
-                "\n{} updating {} from {} to {}",
-                format_args!("[{}/{}]", i + 1, count).bold(),
+                "installing {} {}:\n{e}",
                 pkg.name.green().bold(),
-                pkg.version.blue().bold(),
-                info.extra.version.blue().bold()
-            );
-
-            if let Err(e) = cargo_install(&pkg.name, &info.extra.version, &info.install_info) {
-                println!(
-                    "installing {} {}:\n{e}",
-                    pkg.name.green().bold(),
-                    "failed".red().bold()
-                )
-            }
+                "failed".red().bold()
+            )
         }
     }
 }
@@ -91,30 +93,7 @@ fn cargo_install(name: &str, version: &Version, info: &InstallInfo) -> Result<()
     cmd.arg("--version");
     cmd.arg(version.to_string());
 
-    for bin in &info.bins {
-        cmd.args(&["--bin", bin]);
-    }
-
-    if info.all_features {
-        cmd.arg("--all-features");
-    } else if !info.features.is_empty() {
-        cmd.arg("--features");
-        cmd.arg(info.features.iter().fold(String::new(), |mut s, f| {
-            if !s.is_empty() {
-                s.push(',');
-            }
-            s.push_str(f);
-            s
-        }));
-    }
-
-    if info.no_default_features {
-        cmd.arg("--no-default-features");
-    }
-
-    if !info.profile.is_empty() {
-        cmd.args(&["--profile", &info.profile]);
-    }
+    common::apply_cmd_args(&mut cmd, info);
 
     if !cmd.status()?.success() {
         eprintln!("failed installing `{name}`");
