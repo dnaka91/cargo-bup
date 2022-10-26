@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 
 use git2::Oid;
-use owo_colors::OwoColorize;
+use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
     object::{Columns, Rows, Segment},
@@ -108,6 +108,17 @@ impl<'a> ColorizedVersion<'a> {
     fn new(current: &'a Version, latest: &'a Version) -> Self {
         Self { current, latest }
     }
+
+    fn select_colors(&self) -> [AnsiColors; 3] {
+        let major = (self.current.major, self.latest.major);
+        let minor = (self.current.minor, self.latest.minor);
+
+        match (major, minor) {
+            ((0, 0), (0, 0)) => [AnsiColors::Yellow; 3],
+            ((0, 0), _) => [AnsiColors::Yellow, AnsiColors::Yellow, AnsiColors::Green],
+            _ => [AnsiColors::Yellow, AnsiColors::Green, AnsiColors::Blue],
+        }
+    }
 }
 
 impl<'a> Display for ColorizedVersion<'a> {
@@ -116,12 +127,22 @@ impl<'a> Display for ColorizedVersion<'a> {
         let minor = self.latest.minor;
         let patch = self.latest.patch;
 
+        let colors = self.select_colors();
+
         if self.current.major != self.latest.major {
-            write!(f, "{}", format_args!("{major}.{minor}.{patch}").yellow())?;
+            write!(
+                f,
+                "{}",
+                format_args!("{major}.{minor}.{patch}").color(colors[0])
+            )?;
         } else if self.current.minor != self.latest.minor {
-            write!(f, "{major}.{}", format_args!("{minor}.{patch}").green())?;
+            write!(
+                f,
+                "{major}.{}",
+                format_args!("{minor}.{patch}").color(colors[1])
+            )?;
         } else {
-            write!(f, "{major}.{minor}.{}", patch.blue())?;
+            write!(f, "{major}.{minor}.{}", patch.color(colors[2]))?;
         }
 
         if !self.latest.pre.is_empty() {
