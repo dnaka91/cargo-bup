@@ -43,9 +43,9 @@ fn main() -> Result<()> {
     println!();
 
     if !cmd.dry_run {
-        registry::install_updates(updates.registry.into_iter());
-        git::install_updates(updates.git.into_iter());
-        path::install_updates(updates.path.into_iter());
+        registry::install_updates(updates.registry.into_iter(), cmd.quiet);
+        git::install_updates(updates.git.into_iter(), cmd.quiet);
+        path::install_updates(updates.path.into_iter(), cmd.quiet);
     }
 
     Ok(())

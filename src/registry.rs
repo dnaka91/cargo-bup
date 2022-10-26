@@ -55,6 +55,7 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInf
 
 pub(crate) fn install_updates(
     updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<RegistryInfo>)>,
+    quiet: bool,
 ) {
     let count = updates.len();
     if count == 0 {
@@ -62,23 +63,23 @@ pub(crate) fn install_updates(
     }
 
     println!(
-        "start installing {} {} updates",
+        "start installing {} {} updates\n",
         count.blue().bold(),
         "registry".green().bold()
     );
 
     for (i, (pkg, info)) in updates.enumerate() {
         println!(
-            "\n{} updating {} from {} to {}",
+            "{} updating {} from {} to {}",
             format_args!("[{}/{}]", i + 1, count).bold(),
             pkg.name.green().bold(),
             pkg.version.blue().bold(),
             info.extra.version.blue().bold()
         );
 
-        if let Err(e) = cargo_install(&pkg.name, &info.extra.version, &info.install_info) {
-            println!(
-                "installing {} {}:\n{e}",
+        if let Err(e) = cargo_install(&pkg.name, &info.extra.version, &info.install_info, quiet) {
+            eprintln!(
+                "\ninstalling {} {}:\n{e}",
                 pkg.name.green().bold(),
                 "failed".red().bold()
             )
@@ -86,7 +87,7 @@ pub(crate) fn install_updates(
     }
 }
 
-fn cargo_install(name: &str, version: &Version, info: &InstallInfo) -> Result<()> {
+fn cargo_install(name: &str, version: &Version, info: &InstallInfo, quiet: bool) -> Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.args(&["install", name]);
 
@@ -94,10 +95,5 @@ fn cargo_install(name: &str, version: &Version, info: &InstallInfo) -> Result<()
     cmd.arg(version.to_string());
 
     common::apply_cmd_args(&mut cmd, info);
-
-    if !cmd.status()?.success() {
-        eprintln!("failed installing `{name}`");
-    }
-
-    Ok(())
+    common::run_cmd(cmd, name, quiet)
 }

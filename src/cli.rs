@@ -20,6 +20,9 @@ pub struct Command {
     /// Do an update check, but don't start any actual update installations.
     #[arg(short = 'n', long)]
     pub dry_run: bool,
+    /// Hide the cargo build output.
+    #[arg(short = 'q', long)]
+    pub quiet: bool,
     /// Optional sub-commands that can be triggered.
     #[command(subcommand)]
     pub subcmd: Option<Subcmd>,

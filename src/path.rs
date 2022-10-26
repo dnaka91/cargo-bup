@@ -52,6 +52,7 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<PathInfo>>,
 
 pub(crate) fn install_updates(
     updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<PathInfo>)>,
+    _quiet: bool,
 ) {
     let count = updates.len();
 

@@ -92,6 +92,7 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, 
 
 pub(crate) fn install_updates(
     updates: impl ExactSizeIterator<Item = (PackageId, UpdateInfo<GitInfo>)>,
+    quiet: bool,
 ) {
     let count = updates.len();
     if count == 0 {
@@ -99,14 +100,14 @@ pub(crate) fn install_updates(
     }
 
     println!(
-        "start installing {} {} updates",
+        "start installing {} {} updates\n",
         count.blue().bold(),
         "git".green().bold()
     );
 
     for (i, (pkg, info)) in updates.enumerate() {
         println!(
-            "\n{} updating {} from {} to {}",
+            "{} updating {} from {} to {}",
             format_args!("[{}/{}]", i + 1, count).bold(),
             pkg.name.green().bold(),
             info.extra.old_commit.blue().bold(),
@@ -118,9 +119,10 @@ pub(crate) fn install_updates(
             pkg.source_id.url.as_str(),
             &info.extra.target,
             &info.install_info,
+            quiet,
         ) {
             println!(
-                "installing {} {}:\n{e}",
+                "\ninstalling {} {}:\n{e}",
                 pkg.name.green().bold(),
                 "failed".red().bold()
             )
@@ -128,7 +130,13 @@ pub(crate) fn install_updates(
     }
 }
 
-fn cargo_install(name: &str, git_url: &str, git_ref: &GitTarget, info: &InstallInfo) -> Result<()> {
+fn cargo_install(
+    name: &str,
+    git_url: &str,
+    git_ref: &GitTarget,
+    info: &InstallInfo,
+    quiet: bool,
+) -> Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.args(&["install", name]);
     cmd.args(&["--git", git_url]);
@@ -141,12 +149,7 @@ fn cargo_install(name: &str, git_url: &str, git_ref: &GitTarget, info: &InstallI
     }
 
     common::apply_cmd_args(&mut cmd, info);
-
-    if !cmd.status()?.success() {
-        eprintln!("failed installing `{name}`");
-    }
-
-    Ok(())
+    common::run_cmd(cmd, name, quiet)
 }
 
 fn git_changes<'r>(repo: &'r Repository, old: &Commit<'r>, new: &Commit<'r>) -> Result<GitChanges> {

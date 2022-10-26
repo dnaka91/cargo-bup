@@ -1,4 +1,6 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
+
+use anyhow::Result;
 
 use crate::cargo::InstallInfo;
 
@@ -27,4 +29,24 @@ pub fn apply_cmd_args(cmd: &mut Command, info: &InstallInfo) {
     if !info.profile.is_empty() {
         cmd.args(&["--profile", &info.profile]);
     }
+}
+
+pub fn run_cmd(mut cmd: Command, name: &str, quiet: bool) -> Result<()> {
+    if !quiet {
+        cmd.stdout(Stdio::inherit());
+        cmd.stderr(Stdio::inherit());
+    }
+
+    let output = cmd.output()?;
+
+    if !output.status.success() {
+        if quiet {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("\nfailed installing `{name}`:\n{stderr}")
+        } else {
+            eprintln!("\nfailed installing `{name}`");
+        }
+    }
+
+    Ok(())
 }
