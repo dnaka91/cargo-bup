@@ -31,13 +31,13 @@ pub(crate) fn check_update(
         .crate_(&package.name)
         .context("failed finding package")?;
 
-    let latest = Version::parse(krate.latest_version().version())?;
+    let latest = Version::parse(krate.most_recent_version().version())?;
 
     if !latest.pre.is_empty() && !pre {
         return Ok(None);
     }
 
-    Ok((latest > package.version).then(|| RegistryInfo { version: latest }))
+    Ok((latest > package.version).then_some(RegistryInfo { version: latest }))
 }
 
 pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInfo>>) {

@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     let cmd = cli::parse();
 
     if let Some(Subcmd::Completions { shell }) = cmd.subcmd {
-        cli::generate_completions(shell);
+        cli::completions(shell);
         return Ok(());
     }
 

@@ -7,8 +7,8 @@ use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
     object::{Columns, Rows, Segment},
-    style::Border,
-    Alignment, Header, ModifyObject, Padding, Style, TableIteratorExt, Tabled,
+    style::{Border, HorizontalLine, Line},
+    Alignment, ModifyObject, Padding, Panel, Style, TableIteratorExt, Tabled,
 };
 
 use crate::models::GitInfo;
@@ -47,13 +47,13 @@ impl Display for RegistryTable {
                 .as_slice()
                 .table()
                 // Add color legend as header
-                .with(Header(format!(
+                .with(Panel::header(format!(
                     "{} major · {} minor · {} patch",
                     "◆".yellow(),
                     "◆".green(),
                     "◆".blue()
                 )))
-                .with(Header(
+                .with(Panel::header(
                     format_args!("Updates from the {}", "registry".green())
                         .bold()
                         .to_string()
@@ -67,13 +67,7 @@ impl Display for RegistryTable {
                 )
                 // Draw straight line under the headers
                 .with(
-                    tabled::Style::blank().lines([(
-                        3,
-                        tabled::Style::blank()
-                            .get_horizontal()
-                            .horizontal(Some('─'))
-                            .intersection(Some('─'))
-                    )])
+                    tabled::Style::blank().horizontals([HorizontalLine::new(3, Line::filled('─'))])
                 )
                 // Draw arrow between current and latest version
                 .with(
@@ -195,7 +189,7 @@ impl<'a> Display for GitTable<'a> {
             self.0
                 .as_slice()
                 .table()
-                .with(Header(
+                .with(Panel::header(
                     format_args!("Updates from {}", "git".green())
                         .bold()
                         .to_string()
@@ -207,15 +201,7 @@ impl<'a> Display for GitTable<'a> {
                         .with(Padding::new(1, 1, 0, 1))
                 )
                 // Draw strait line under the headers
-                .with(
-                    Style::blank().lines([(
-                        2,
-                        Style::blank()
-                            .get_horizontal()
-                            .horizontal(Some('─'))
-                            .intersection(Some('─')),
-                    )]),
-                )
+                .with(Style::blank().horizontals([HorizontalLine::new(2, Line::filled('─'))]))
                 // Draw arrow between old and new commit
                 .with(
                     Segment::new(2.., 2..=2)
