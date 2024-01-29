@@ -251,10 +251,10 @@ pub struct InstallInfo {
     /// Profile use for installation, usually "debug" or "release".
     pub profile: String,
     /// The installation target. Either the host or the value specified in `--target`.
-    pub target: String,
+    pub target: Option<String>,
     /// Output of `rustc -V --verbose`.
     #[serde(deserialize_with = "deser::version_meta")]
-    pub rustc: VersionMeta,
+    pub rustc: Option<VersionMeta>,
 }
 
 mod deser {
@@ -264,11 +264,13 @@ mod deser {
     use serde::{de, Deserialize, Deserializer};
 
     /// Deserialize the text output of `rustc -vV` into a typed [`VersionMeta`].
-    pub fn version_meta<'de, D>(deserializer: D) -> Result<VersionMeta, D::Error>
+    pub fn version_meta<'de, D>(deserializer: D) -> Result<Option<VersionMeta>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let string = String::deserialize(deserializer)?;
-        rustc_version::version_meta_for(&string).map_err(de::Error::custom)
+        let string = Option::<String>::deserialize(deserializer)?;
+        string
+            .map(|string| rustc_version::version_meta_for(&string).map_err(de::Error::custom))
+            .transpose()
     }
 }
