@@ -89,7 +89,7 @@ pub(crate) fn install_updates(
 
 fn cargo_install(name: &str, version: &Version, info: &InstallInfo, quiet: bool) -> Result<()> {
     let mut cmd = Command::new("cargo");
-    cmd.args(&["install", name]);
+    cmd.args(["install", name]);
 
     cmd.arg("--version");
     cmd.arg(version.to_string());

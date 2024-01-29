@@ -138,13 +138,13 @@ fn cargo_install(
     quiet: bool,
 ) -> Result<()> {
     let mut cmd = Command::new("cargo");
-    cmd.args(&["install", name]);
-    cmd.args(&["--git", git_url]);
+    cmd.args(["install", name]);
+    cmd.args(["--git", git_url]);
 
     match git_ref {
         GitTarget::Default => {} // This is the default, so nothing to do
         GitTarget::Branch(b) => {
-            cmd.args(&["--branch", b]);
+            cmd.args(["--branch", b]);
         }
     }
 
@@ -185,7 +185,7 @@ fn get_git_repo_path(canonical_url: &CanonicalUrl) -> Result<PathBuf> {
     let path = format!("{ident}-{hash}");
 
     let cargo_home = home::cargo_home()?;
-    let repo_path = cargo_home.join("git/db").join(&path);
+    let repo_path = cargo_home.join("git/db").join(path);
 
     Ok(repo_path)
 }

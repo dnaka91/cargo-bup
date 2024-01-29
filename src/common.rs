@@ -6,7 +6,7 @@ use crate::cargo::InstallInfo;
 
 pub fn apply_cmd_args(cmd: &mut Command, info: &InstallInfo) {
     for bin in &info.bins {
-        cmd.args(&["--bin", bin]);
+        cmd.args(["--bin", bin]);
     }
 
     if info.all_features {
@@ -27,7 +27,7 @@ pub fn apply_cmd_args(cmd: &mut Command, info: &InstallInfo) {
     }
 
     if !info.profile.is_empty() {
-        cmd.args(&["--profile", &info.profile]);
+        cmd.args(["--profile", &info.profile]);
     }
 }
 
