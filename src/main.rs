@@ -83,8 +83,8 @@ fn update_index() -> Result<()> {
     Ok(())
 }
 
-/// Fetch updates for all installed binaries, eventually filtering out entires, based on the user
-/// provided filter flags (or rather inclusing flags).
+/// Fetch updates for all installed binaries, eventually filtering out entries, based on the user
+/// provided filter flags (or rather including flags).
 ///
 /// The update information is collected into several lists, one for each source, as the printable
 /// information and installation logic varies for each source.
