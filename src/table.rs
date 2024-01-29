@@ -2,8 +2,8 @@
 
 use std::fmt::{self, Display};
 
+use anstyle::AnsiColor;
 use gix::ObjectId;
-use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
     settings::{
@@ -14,7 +14,7 @@ use tabled::{
     Table, Tabled,
 };
 
-use crate::models::GitInfo;
+use crate::{colors, models::GitInfo};
 
 /// The registry table prints updates for crates that come directly from the a crate registry.
 #[derive(Default)]
@@ -50,12 +50,12 @@ impl Display for RegistryTable {
                 // Add color legend as header
                 .with(Panel::header(format!(
                     "{} major · {} minor · {} patch",
-                    "◆".yellow(),
-                    "◆".green(),
-                    "◆".blue()
+                    colors::yellow("◆"),
+                    colors::green("◆"),
+                    colors::blue("◆")
                 )))
                 .with(Panel::header(
-                    format_args!("Updates from the {}", "registry".green())
+                    colors::green(format_args!("Updates from the {}", "registry"))
                         .bold()
                         .to_string()
                 ))
@@ -97,14 +97,14 @@ impl<'a> ColorizedVersion<'a> {
         Self { current, latest }
     }
 
-    fn select_colors(&self) -> [AnsiColors; 3] {
+    fn select_colors(&self) -> [AnsiColor; 3] {
         let major = (self.current.major, self.latest.major);
         let minor = (self.current.minor, self.latest.minor);
 
         match (major, minor) {
-            ((0, 0), (0, 0)) => [AnsiColors::Yellow; 3],
-            ((0, 0), _) => [AnsiColors::Yellow, AnsiColors::Yellow, AnsiColors::Green],
-            _ => [AnsiColors::Yellow, AnsiColors::Green, AnsiColors::Blue],
+            ((0, 0), (0, 0)) => [AnsiColor::Yellow; 3],
+            ((0, 0), _) => [AnsiColor::Yellow, AnsiColor::Yellow, AnsiColor::Green],
+            _ => [AnsiColor::Yellow, AnsiColor::Green, AnsiColor::Blue],
         }
     }
 }
@@ -121,24 +121,28 @@ impl<'a> Display for ColorizedVersion<'a> {
             write!(
                 f,
                 "{}",
-                format_args!("{major}.{minor}.{patch}").color(colors[0])
+                colors::Styled::fg(format_args!("{major}.{minor}.{patch}"), colors[0])
             )?;
         } else if self.current.minor != self.latest.minor {
             write!(
                 f,
                 "{major}.{}",
-                format_args!("{minor}.{patch}").color(colors[1])
+                colors::Styled::fg(format_args!("{minor}.{patch}"), colors[1])
             )?;
         } else {
-            write!(f, "{major}.{minor}.{}", patch.color(colors[2]))?;
+            write!(
+                f,
+                "{major}.{minor}.{}",
+                colors::Styled::fg(patch, colors[2])
+            )?;
         }
 
         if !self.latest.pre.is_empty() {
-            write!(f, "-{}", self.latest.pre.dimmed())?;
+            write!(f, "-{}", colors::dimmed(&self.latest.pre))?;
         }
 
         if !self.latest.build.is_empty() {
-            write!(f, "+{}", self.latest.build.dimmed())?;
+            write!(f, "+{}", colors::dimmed(&self.latest.build))?;
         }
 
         Ok(())
@@ -182,7 +186,7 @@ impl<'a> Display for GitTable<'a> {
             "{}",
             Table::new(&self.0)
                 .with(Panel::header(
-                    format_args!("Updates from {}", "git".green())
+                    colors::green(format_args!("Updates from {}", "git"))
                         .bold()
                         .to_string()
                 ))
@@ -232,27 +236,27 @@ struct GitRow<'a> {
 }
 
 fn display_type(value: &str) -> String {
-    value.blue().to_string()
+    colors::blue(value).to_string()
 }
 
 fn display_commit(value: &ObjectId) -> String {
-    format!("{:.7}", value.cyan())
+    format!("{:.7}", colors::cyan(value))
 }
 
 fn display_commit_count(value: &usize) -> String {
-    format!("{} commits", value.yellow())
+    format!("{} commits", colors::yellow(value))
 }
 
 fn display_files_changed(value: &usize) -> String {
-    format!("{} files changed", value.white())
+    format!("{} files changed", colors::white(value))
 }
 
 fn display_insertions(value: &usize) -> String {
-    format_args!("+{value}").green().to_string()
+    colors::green(format_args!("+{value}")).to_string()
 }
 
 fn display_deletions(value: &usize) -> String {
-    format_args!("-{value}").red().to_string()
+    colors::red(format_args!("-{value}")).to_string()
 }
 
 #[cfg(test)]

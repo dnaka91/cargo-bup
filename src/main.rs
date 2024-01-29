@@ -1,9 +1,9 @@
 use std::{fmt, fs::File, io::Write, sync::Arc};
 
+use anstream::{print, println};
 use anyhow::Result;
 use cli::SelectArgs;
 use crates_index::GitIndex;
-use owo_colors::OwoColorize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use thread_local::ThreadLocal;
 
@@ -15,6 +15,7 @@ use crate::{
 
 mod cargo;
 mod cli;
+mod colors;
 mod common;
 mod git;
 mod models;
@@ -56,8 +57,8 @@ fn main() -> Result<()> {
 fn load_crate_state() -> Result<CrateListingV2> {
     let _guard = progress(format_args!(
         "{} loading {}",
-        "[1/3]".bold(),
-        "crate state".green().bold()
+        colors::bold("[1/3]"),
+        colors::green("crate state").bold()
     ));
 
     let home = home::cargo_home()?;
@@ -73,8 +74,8 @@ fn load_crate_state() -> Result<CrateListingV2> {
 fn update_index() -> Result<()> {
     let _guard = progress(format_args!(
         "{} updating {}",
-        "[2/3]".bold(),
-        "crates.io index".green().bold()
+        colors::bold("[2/3]"),
+        colors::green("crates.io index").bold()
     ));
 
     let mut index = GitIndex::new_cargo_default()?;
@@ -91,8 +92,8 @@ fn update_index() -> Result<()> {
 fn collect_updates(info: CrateListingV2, args: &SelectArgs) -> Result<Updates> {
     let _guard = progress(format_args!(
         "{} collecting {}",
-        "[3/3]".bold(),
-        "updates".green().bold()
+        colors::bold("[3/3]"),
+        colors::green("updates").bold()
     ));
 
     let tls = Arc::new(ThreadLocal::new());

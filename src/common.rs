@@ -1,5 +1,6 @@
 use std::process::{Command, Stdio};
 
+use anstream::eprintln;
 use anyhow::Result;
 
 use crate::cargo::InstallInfo;

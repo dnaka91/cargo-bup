@@ -2,11 +2,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use anstream::println;
 use anyhow::Result;
-use owo_colors::OwoColorize;
 
 use crate::{
     cargo::PackageId,
+    colors,
     models::{PathInfo, UpdateInfo},
 };
 
@@ -22,13 +23,13 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<PathInfo>>,
     if !enabled {
         println!(
             "{} crate updates {}",
-            "local path".green(),
-            "disabled".yellow().bold()
+            colors::green("local path"),
+            colors::yellow("disabled").bold(),
         );
     } else if updates.is_empty() {
-        println!("no {} crates", "local path".green());
+        println!("no {} crates", colors::green("local path"));
     } else {
-        println!("<<< Updates from {} >>>", "local paths".green());
+        println!("<<< Updates from {} >>>", colors::green("local paths"));
 
         let paths = updates
             .iter()
@@ -59,8 +60,8 @@ pub(crate) fn install_updates(
     if count > 0 {
         println!(
             "start installing {} {} updates",
-            count.blue().bold(),
-            "local path".green().bold()
+            colors::blue(count).bold(),
+            colors::green("local path").bold()
         );
     }
 }

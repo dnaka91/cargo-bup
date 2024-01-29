@@ -2,14 +2,14 @@
 
 use std::{collections::BTreeMap, process::Command};
 
+use anstream::{eprintln, println};
 use anyhow::{Context, Result};
 use crates_index::GitIndex;
-use owo_colors::OwoColorize;
 use semver::Version;
 
 use crate::{
     cargo::{InstallInfo, PackageId},
-    common,
+    colors, common,
     models::{RegistryInfo, UpdateInfo},
     table::RegistryTable,
 };
@@ -42,7 +42,7 @@ pub(crate) fn check_update(
 
 pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<RegistryInfo>>) {
     if updates.is_empty() {
-        println!("no {} crate updates", "registry".green());
+        println!("no {} crate updates", colors::green("registry"));
     } else {
         let table = updates
             .iter()
@@ -64,24 +64,24 @@ pub(crate) fn install_updates(
 
     println!(
         "start installing {} {} updates\n",
-        count.blue().bold(),
-        "registry".green().bold()
+        colors::blue(count).bold(),
+        colors::green("registry").bold()
     );
 
     for (i, (pkg, info)) in updates.enumerate() {
         println!(
             "{} updating {} from {} to {}",
-            format_args!("[{}/{}]", i + 1, count).bold(),
-            pkg.name.green().bold(),
-            pkg.version.blue().bold(),
-            info.extra.version.blue().bold()
+            colors::bold(format_args!("[{}/{}]", i + 1, count)),
+            colors::green(&pkg.name).bold(),
+            colors::blue(pkg.version).bold(),
+            colors::blue(&info.extra.version).bold()
         );
 
         if let Err(e) = cargo_install(&pkg.name, &info.extra.version, &info.install_info, quiet) {
             eprintln!(
                 "\ninstalling {} {}:\n{e}",
-                pkg.name.green().bold(),
-                "failed".red().bold()
+                colors::green(pkg.name).bold(),
+                colors::red("failed").bold()
             )
         }
     }

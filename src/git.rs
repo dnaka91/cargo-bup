@@ -7,14 +7,14 @@ use std::{
     process::Command,
 };
 
+use anstream::println;
 use anyhow::{Context, Result};
 use gix::{remote::Direction, Commit, ObjectId, Repository};
-use owo_colors::OwoColorize;
 use siphasher::sip::SipHasher24;
 
 use crate::{
     cargo::{CanonicalUrl, GitReference, InstallInfo, PackageId},
-    common,
+    colors, common,
     models::{GitChanges, GitInfo, GitTarget, UpdateInfo},
     table::GitTable,
 };
@@ -83,11 +83,11 @@ pub(crate) fn print_updates(updates: &BTreeMap<PackageId, UpdateInfo<GitInfo>>, 
     if !enabled {
         println!(
             "{} crate updates {}",
-            "git".green(),
-            "disabled".yellow().bold()
+            colors::green("git"),
+            colors::yellow("disabled").bold()
         );
     } else if updates.is_empty() {
-        println!("no {} crate updates", "git".green());
+        println!("no {} crate updates", colors::green("git"));
     } else {
         let table = updates
             .iter()
@@ -109,17 +109,17 @@ pub(crate) fn install_updates(
 
     println!(
         "start installing {} {} updates\n",
-        count.blue().bold(),
-        "git".green().bold()
+        colors::blue(count).bold(),
+        colors::green("git").bold()
     );
 
     for (i, (pkg, info)) in updates.enumerate() {
         println!(
             "{} updating {} from {} to {}",
-            format_args!("[{}/{}]", i + 1, count).bold(),
-            pkg.name.green().bold(),
-            info.extra.old_commit.blue().bold(),
-            info.extra.new_commit.blue().bold()
+            colors::bold(format_args!("[{}/{}]", i + 1, count)),
+            colors::green(&pkg.name).bold(),
+            colors::blue(info.extra.old_commit).bold(),
+            colors::blue(info.extra.new_commit).bold()
         );
 
         if let Err(e) = cargo_install(
@@ -131,8 +131,8 @@ pub(crate) fn install_updates(
         ) {
             println!(
                 "\ninstalling {} {}:\n{e}",
-                pkg.name.green().bold(),
-                "failed".red().bold()
+                colors::green(pkg.name).bold(),
+                colors::red("failed").bold()
             )
         }
     }
