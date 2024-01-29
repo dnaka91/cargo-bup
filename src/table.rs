@@ -6,9 +6,11 @@ use git2::Oid;
 use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
-    settings::object::{Columns, Rows, Segment},
-    settings::style::{Border, HorizontalLine, Style},
-    settings::{Alignment, Modify, Padding, Panel},
+    settings::{
+        object::{Columns, Rows, Segment},
+        style::{Border, HorizontalLine, Style},
+        Alignment, Modify, Padding, Panel,
+    },
     Table, Tabled,
 };
 
