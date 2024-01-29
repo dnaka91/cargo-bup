@@ -5,3 +5,13 @@ exceptions = [
     { allow = ["AGPL-3.0"], name = "cargo-bup", version = "*" },
     { allow = ["Unicode-DFS-2016"], name = "unicode-ident", version = "*" },
 ]
+
+[bans]
+skip = [
+    { name = "arrayvec", version = "0.5" },
+    { name = "bitflags", version = "1" },
+    { name = "syn", version = "1" },
+]
+skip-tree = [
+    { name = "windows-sys", version = "0.48", depth = 3 },
+]

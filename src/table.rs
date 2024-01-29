@@ -6,9 +6,10 @@ use git2::Oid;
 use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
-    object::{Columns, Rows, Segment},
-    style::{Border, HorizontalLine, Line},
-    Alignment, ModifyObject, Padding, Panel, Style, TableIteratorExt, Tabled,
+    settings::object::{Columns, Rows, Segment},
+    settings::style::{Border, HorizontalLine, Style},
+    settings::{Alignment, Modify, Padding, Panel},
+    Table, Tabled,
 };
 
 use crate::models::GitInfo;
@@ -43,9 +44,7 @@ impl Display for RegistryTable {
         writeln!(
             f,
             "{}",
-            self.0
-                .as_slice()
-                .table()
+            Table::new(&self.0)
                 // Add color legend as header
                 .with(Panel::header(format!(
                     "{} major · {} minor · {} patch",
@@ -60,24 +59,17 @@ impl Display for RegistryTable {
                 ))
                 // Align headers to the center
                 .with(
-                    Rows::new(0..=1)
-                        .modify()
+                    Modify::new(Rows::new(0..=1))
                         .with(Alignment::center())
                         .with(Padding::new(1, 1, 0, 1))
                 )
                 // Draw straight line under the headers
-                .with(
-                    tabled::Style::blank().horizontals([HorizontalLine::new(3, Line::filled('─'))])
-                )
+                .with(Style::blank().horizontals([(3, HorizontalLine::new('─').intersection('─'))]))
                 // Draw arrow between current and latest version
-                .with(
-                    Segment::new(3.., 1..=1)
-                        .modify()
-                        .with(Border::default().right('➞'))
-                )
+                .with(Modify::new(Segment::new(3.., 1..=1)).with(Border::new().set_right('➞')))
                 // Add spacing between current and latest version
-                .with(Columns::single(1).modify().with(Padding::new(1, 2, 0, 0)))
-                .with(Columns::single(2).modify().with(Padding::new(2, 1, 0, 0)))
+                .with(Modify::new(Columns::single(1)).with(Padding::new(1, 2, 0, 0)))
+                .with(Modify::new(Columns::single(2)).with(Padding::new(2, 1, 0, 0)))
         )
     }
 }
@@ -186,40 +178,32 @@ impl<'a> Display for GitTable<'a> {
         writeln!(
             f,
             "{}",
-            self.0
-                .as_slice()
-                .table()
+            Table::new(&self.0)
                 .with(Panel::header(
                     format_args!("Updates from {}", "git".green())
                         .bold()
                         .to_string()
                 ))
                 .with(
-                    Rows::first()
-                        .modify()
+                    Modify::new(Rows::first())
                         .with(Alignment::center())
                         .with(Padding::new(1, 1, 0, 1))
                 )
                 // Draw strait line under the headers
-                .with(Style::blank().horizontals([HorizontalLine::new(2, Line::filled('─'))]))
+                .with(Style::blank().horizontals([(2, HorizontalLine::new('─').intersection('─'))]))
                 // Draw arrow between old and new commit
-                .with(
-                    Segment::new(2.., 2..=2)
-                        .modify()
-                        .with(Border::default().right('➞')),
-                )
+                .with(Modify::new(Segment::new(2.., 2..=2)).with(Border::new().set_right('➞')),)
                 // Add spacing between old and new commit
-                .with(Columns::single(2).modify().with(Padding::new(1, 2, 0, 0)))
-                .with(Columns::single(3).modify().with(Padding::new(2, 1, 0, 0)))
+                .with(Modify::new(Columns::single(2)).with(Padding::new(1, 2, 0, 0)))
+                .with(Modify::new(Columns::single(3)).with(Padding::new(2, 1, 0, 0)))
                 // Align commit details and reduce padding
                 .with(
-                    Segment::new(2.., 4..)
-                        .modify()
+                    Modify::new(Segment::new(2.., 4..))
                         .with(Alignment::right())
                         .with(Padding::zero()),
                 )
-                .with(Columns::single(4).modify().with(Padding::new(1, 0, 0, 0)))
-                .with(Columns::single(7).modify().with(Padding::new(0, 1, 0, 0)))
+                .with(Modify::new(Columns::single(4)).with(Padding::new(1, 0, 0, 0)))
+                .with(Modify::new(Columns::single(7)).with(Padding::new(0, 1, 0, 0)))
         )
     }
 }

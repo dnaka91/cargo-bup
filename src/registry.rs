@@ -3,7 +3,7 @@
 use std::{collections::BTreeMap, process::Command};
 
 use anyhow::{Context, Result};
-use crates_index::Index;
+use crates_index::GitIndex;
 use owo_colors::OwoColorize;
 use semver::Version;
 
@@ -18,7 +18,7 @@ use crate::{
 const CRATES_IO_GIT_URL: &str = "https://github.com/rust-lang/crates.io-index";
 
 pub(crate) fn check_update(
-    index: &Index,
+    index: &GitIndex,
     package: &PackageId,
     pre: bool,
 ) -> Result<Option<RegistryInfo>> {

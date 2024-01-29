@@ -2,7 +2,7 @@ use std::{fmt, fs::File, io::Write, sync::Arc};
 
 use anyhow::Result;
 use cli::SelectArgs;
-use crates_index::Index;
+use crates_index::GitIndex;
 use owo_colors::OwoColorize;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use thread_local::ThreadLocal;
@@ -77,7 +77,7 @@ fn update_index() -> Result<()> {
         "crates.io index".green().bold()
     ));
 
-    let mut index = Index::new_cargo_default()?;
+    let mut index = GitIndex::new_cargo_default()?;
     index.update()?;
 
     Ok(())
@@ -113,7 +113,7 @@ fn collect_updates(info: CrateListingV2, args: &SelectArgs) -> Result<Updates> {
                 }
                 SourceKind::Registry => {
                     let tls = Arc::clone(&tls);
-                    let index = tls.get_or_try(Index::new_cargo_default)?;
+                    let index = tls.get_or_try(GitIndex::new_cargo_default)?;
 
                     if let Some(update) = registry::check_update(index, &package, args.pre)? {
                         updates
