@@ -2,7 +2,7 @@
 
 use std::fmt::{self, Display};
 
-use git2::Oid;
+use gix::ObjectId;
 use owo_colors::{AnsiColors, OwoColorize};
 use semver::Version;
 use tabled::{
@@ -218,9 +218,9 @@ struct GitRow<'a> {
     #[tabled(rename = "Type", display_with = "display_type")]
     r#type: &'a str,
     #[tabled(rename = "Old", display_with = "display_commit")]
-    old_commit: Oid,
+    old_commit: ObjectId,
     #[tabled(rename = "New", display_with = "display_commit")]
-    new_commit: Oid,
+    new_commit: ObjectId,
     #[tabled(rename = "Changes", display_with = "display_commit_count")]
     commits: usize,
     #[tabled(rename = "", display_with = "display_files_changed")]
@@ -235,7 +235,7 @@ fn display_type(value: &str) -> String {
     value.blue().to_string()
 }
 
-fn display_commit(value: &Oid) -> String {
+fn display_commit(value: &ObjectId) -> String {
     format!("{:.7}", value.cyan())
 }
 

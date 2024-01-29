@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use git2::Oid;
+use gix::ObjectId;
 use semver::Version;
 
 use crate::cargo::{InstallInfo, PackageId};
@@ -34,12 +34,13 @@ pub struct RegistryInfo {
 
 pub struct GitInfo {
     pub r#type: String,
-    pub old_commit: Oid,
-    pub new_commit: Oid,
+    pub old_commit: ObjectId,
+    pub new_commit: ObjectId,
     pub changes: GitChanges,
     pub target: GitTarget,
 }
 
+#[derive(Default)]
 pub struct GitChanges {
     pub commits: usize,
     pub files_changed: usize,

@@ -10,6 +10,7 @@ exceptions = [
 skip = [
     { name = "arrayvec", version = "0.5" },
     { name = "bitflags", version = "1" },
+    { name = "hashbrown", version = "0.12" },
     { name = "syn", version = "1" },
 ]
 skip-tree = [
