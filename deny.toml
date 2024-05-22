@@ -1,9 +1,18 @@
+[advisories]
+version = 2
+
 [licenses]
-allow = ["MPL-2.0"]
-allow-osi-fsf-free = "both"
+version = 2
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "MIT",
+    "MPL-2.0",
+]
 exceptions = [
-    { allow = ["AGPL-3.0"], name = "cargo-bup", version = "*" },
-    { allow = ["Unicode-DFS-2016"], name = "unicode-ident", version = "*" },
+    { allow = ["AGPL-3.0"], name = "cargo-bup" },
+    { allow = ["Unicode-DFS-2016"], name = "unicode-ident" },
 ]
 
 [bans]
@@ -11,8 +20,7 @@ skip = [
     { name = "arrayvec", version = "0.5" },
     { name = "bitflags", version = "1" },
     { name = "hashbrown", version = "0.12" },
+    { name = "heck", version = "0.4" },
+    { name = "redox_syscall", version = "0.4" },
     { name = "syn", version = "1" },
-]
-skip-tree = [
-    { name = "windows-sys", version = "0.48", depth = 3 },
 ]
